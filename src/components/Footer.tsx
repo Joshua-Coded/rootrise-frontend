@@ -17,7 +17,6 @@ import {
 
 export function Footer() {
   const router = useRouter();
-  
   const bg = useColorModeValue('gray.900', 'gray.800');
   const textColor = useColorModeValue('gray.300', 'gray.400');
   const linkColor = useColorModeValue('white', 'gray.100');
@@ -60,7 +59,6 @@ export function Footer() {
     <Box bg={bg} color={textColor} mt={16}>
       <Container maxW="7xl" py={12}>
         <SimpleGrid columns={{ base: 1, md: 2, lg: 5 }} spacing={8}>
-          {/* Brand Section */}
           <VStack align="start" spacing={4}>
             <HStack spacing={3}>
               <Box
@@ -78,12 +76,7 @@ export function Footer() {
                 R
               </Box>
               <VStack spacing={0} align="start">
-                <Text
-                  fontSize="xl"
-                  fontWeight="bold"
-                  color={linkColor}
-                  lineHeight="none"
-                >
+                <Text fontSize="xl" fontWeight="bold" color={linkColor} lineHeight="none">
                   RootRise
                 </Text>
                 <Text fontSize="xs" color={textColor} lineHeight="none">
@@ -91,12 +84,10 @@ export function Footer() {
                 </Text>
               </VStack>
             </HStack>
-            
             <Text fontSize="sm" maxW="250px" lineHeight="tall">
-              Empowering Rwandan farmers through transparent, blockchain-based 
-              crowdfunding. Building bridges between global capital and local impact.
+              Empowering Rwanda&apos;s farmers through transparent, blockchain-based crowdfunding.
+              Building bridges between global capital and local impact.
             </Text>
-
             <HStack spacing={3}>
               {socialLinks.map((social) => (
                 <IconButton
@@ -110,17 +101,13 @@ export function Footer() {
                   size="sm"
                   variant="ghost"
                   color={textColor}
-                  _hover={{
-                    color: 'brand.400',
-                    transform: 'translateY(-2px)',
-                  }}
+                  _hover={{ color: 'brand.400', transform: 'translateY(-2px)' }}
                   transition="all 0.2s"
                 />
               ))}
             </HStack>
           </VStack>
 
-          {/* Platform Links */}
           <VStack align="start" spacing={4}>
             <Text fontSize="md" fontWeight="bold" color={linkColor}>
               Platform
@@ -142,7 +129,6 @@ export function Footer() {
             </VStack>
           </VStack>
 
-          {/* Company Links */}
           <VStack align="start" spacing={4}>
             <Text fontSize="md" fontWeight="bold" color={linkColor}>
               Company
@@ -164,7 +150,6 @@ export function Footer() {
             </VStack>
           </VStack>
 
-          {/* Resources Links */}
           <VStack align="start" spacing={4}>
             <Text fontSize="md" fontWeight="bold" color={linkColor}>
               Resources
@@ -186,7 +171,6 @@ export function Footer() {
             </VStack>
           </VStack>
 
-          {/* Legal Links */}
           <VStack align="start" spacing={4}>
             <Text fontSize="md" fontWeight="bold" color={linkColor}>
               Legal
@@ -211,67 +195,15 @@ export function Footer() {
 
         <Divider my={8} borderColor="gray.600" />
 
-        {/* Bottom Section */}
-        <HStack
-          justify="space-between"
-          wrap="wrap"
-          spacing={4}
-          fontSize="sm"
-          color={textColor}
-        >
+        <HStack justify="space-between" wrap="wrap" spacing={4} fontSize="sm" color={textColor}>
           <VStack align="start" spacing={1}>
-            <Text>
-              © 2025 RootRise. All rights reserved.
-            </Text>
-            <Text fontSize="xs">
-              Built with ❤️ for Rwanda's agricultural community
-            </Text>
+            <Text>© 2025 RootRise. All rights reserved.</Text>
+            <Text fontSize="xs">Built with ❤️ for Rwanda&apos;s agricultural community</Text>
           </VStack>
-
           <VStack align="end" spacing={1}>
-            <HStack spacing={4} wrap="wrap">
-              <Text fontSize="xs">
-                Smart Contracts on Ethereum
-              </Text>
-              <Text fontSize="xs" color="brand.400">
-                Sepolia Testnet
-              </Text>
-            </HStack>
-            <Text fontSize="xs">
-              Powered by blockchain technology
-            </Text>
+            <Text fontSize="xs">Powered by blockchain technology</Text>
           </VStack>
         </HStack>
-
-        {/* Network Status */}
-        <Box mt={6} p={4} bg="gray.800" borderRadius="md" border="1px" borderColor="gray.600">
-          <HStack justify="space-between" wrap="wrap" spacing={4}>
-            <VStack align="start" spacing={1}>
-              <Text fontSize="xs" fontWeight="bold" color={linkColor}>
-                Network Information
-              </Text>
-              <Text fontSize="xs">
-                Current Network: Sepolia Testnet (Chain ID: 11155111)
-              </Text>
-            </VStack>
-            
-            <VStack align="end" spacing={1}>
-              <Text fontSize="xs" fontWeight="bold" color={linkColor}>
-                Contract Status
-              </Text>
-              <HStack spacing={3}>
-                <HStack spacing={1}>
-                  <Box w={2} h={2} bg="green.400" borderRadius="full" />
-                  <Text fontSize="xs">RootRise</Text>
-                </HStack>
-                <HStack spacing={1}>
-                  <Box w={2} h={2} bg="green.400" borderRadius="full" />
-                  <Text fontSize="xs">MockUSDC</Text>
-                </HStack>
-              </HStack>
-            </VStack>
-          </HStack>
-        </Box>
       </Container>
     </Box>
   );
