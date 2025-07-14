@@ -49,7 +49,6 @@ export default function DashboardPage() {
   const cardBg = useColorModeValue('white', 'gray.800');
 
   // Mock project data
-  // const totalProjects = 5;
   const usdcBalance = 1000; // Mock USDC balance
   const projects = [
     {
@@ -212,7 +211,7 @@ export default function DashboardPage() {
                       <Alert status="info" borderRadius="md">
                         <AlertIcon />
                         <AlertDescription>
-                          You haven't contributed to any projects yet.
+                          You haven&apos;t contributed to any projects yet.
                           <Button
                             ml={2}
                             size="sm"
@@ -334,7 +333,7 @@ export default function DashboardPage() {
                       <Alert status="info" borderRadius="md">
                         <AlertIcon />
                         <AlertDescription>
-                          You haven't created any projects yet.
+                          You haven&apos;t created any projects yet.
                           <Button
                             ml={2}
                             size="sm"
