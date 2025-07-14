@@ -49,7 +49,7 @@ export default function DashboardPage() {
   const cardBg = useColorModeValue('white', 'gray.800');
 
   // Mock project data
-  const totalProjects = 5;
+  // const totalProjects = 5;
   const usdcBalance = 1000; // Mock USDC balance
   const projects = [
     {

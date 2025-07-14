@@ -244,12 +244,12 @@ export default function ProjectDetailPage() {
             <CardBody pt={0}>
               <Text color="gray.600" lineHeight="tall">
                 This agricultural project aims to improve farming productivity and support rural
-                communities in Rwanda. The farmer has been verified by our team and has demonstrated
+                communities in Rwanda. The farmer&apos;s been verified by our team and has demonstrated
                 a clear plan for utilizing the funds effectively.
                 <br /><br />
                 The project includes modern farming techniques, quality seeds, fertilizers, and
                 equipment necessary to increase crop yield and ensure food security. Your contribution
-                will directly impact the farmer's livelihood and the local community's well-being.
+                will directly impact the farmer&apos;s livelihood and the local community&apos;s well-being.
                 <br /><br />
                 All funds are held in a smart contract and will be automatically released to the
                 farmer once the funding goal is reached and the project deadline has passed.

@@ -27,7 +27,7 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
-  const isConnected = false; // Static placeholder
+  const isConnected = false; // Static placeholder for UI preview
 
   const bgGradient = useColorModeValue(
     'linear(to-br, green.50, blue.50)',
@@ -43,12 +43,12 @@ export default function HomePage() {
     {
       icon: FaGlobeAfrica,
       title: 'Global Reach',
-      description: 'Connect investors worldwide with local farmers using blockchain technology.',
+      description: 'Connect investors worldwide with local farmers for sustainable growth.',
     },
     {
       icon: FaHandshake,
       title: 'Transparent Trust',
-      description: 'Smart contracts ensure funds reach farmers automatically when goals are met.',
+      description: 'Secure platform ensures funds reach farmers when goals are met.',
     },
     {
       icon: FaChartLine,
@@ -60,13 +60,11 @@ export default function HomePage() {
   return (
     <Box minH="100vh" bg={bgGradient}>
       <Navbar />
-
       <Container maxW="7xl" pt={20} pb={16}>
         <VStack spacing={8} textAlign="center">
           <Badge colorScheme="green" fontSize="sm" px={3} py={1} borderRadius="full">
-            Blockchain-Powered Agricultural Finance
+            Agricultural Crowdfunding Platform
           </Badge>
-
           <Heading
             fontSize={{ base: '4xl', md: '6xl', lg: '7xl' }}
             fontWeight="bold"
@@ -78,17 +76,15 @@ export default function HomePage() {
             <br />
             Thousand Hills
           </Heading>
-
           <Text
             fontSize={{ base: 'lg', md: 'xl' }}
             color="gray.600"
             maxW="2xl"
             lineHeight="tall"
           >
-            Empowering Rwandan farmers through transparent, blockchain-based crowdfunding.
+            Empowering Rwanda&apos;s farmers through transparent crowdfunding.
             Connect global investors with local agricultural projects for sustainable growth.
           </Text>
-
           <HStack spacing={4} wrap="wrap" justify="center">
             <Button
               size="lg"
@@ -100,7 +96,6 @@ export default function HomePage() {
             >
               Explore Projects
             </Button>
-
             {!isConnected ? (
               <Button
                 size="lg"
@@ -147,7 +142,6 @@ export default function HomePage() {
               Active Projects
             </StatLabel>
           </Stat>
-
           <Stat
             bg="white"
             p={6}
@@ -164,7 +158,6 @@ export default function HomePage() {
               Total Funded
             </StatLabel>
           </Stat>
-
           <Stat
             bg="white"
             p={6}
@@ -184,7 +177,6 @@ export default function HomePage() {
               World Bank, 2018
             </StatHelpText>
           </Stat>
-
           <Stat
             bg="white"
             p={6}
@@ -201,7 +193,7 @@ export default function HomePage() {
               Financing Gap
             </StatLabel>
             <StatHelpText fontSize="xs">
-              Annual deficit
+              Annual Deficit
             </StatHelpText>
           </Stat>
         </SimpleGrid>
@@ -214,10 +206,9 @@ export default function HomePage() {
               How RootRise Works
             </Heading>
             <Text fontSize="lg" color="gray.600" maxW="2xl">
-              Our blockchain platform creates a transparent bridge between global capital and local agricultural needs
+              Our platform creates a transparent bridge between global capital and local agricultural needs.
             </Text>
           </VStack>
-
           <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={8}>
             {features.map((feature, index) => (
               <Card
@@ -263,13 +254,13 @@ export default function HomePage() {
               </Heading>
               <VStack spacing={4} align="start">
                 <Text color="gray.600" fontSize="lg">
-                  <strong>For Investors:</strong> No reliable mechanism to ensure funds reach their intended purpose
+                  <strong>For Investors:</strong> No reliable mechanism to ensure funds reach their intended purpose.
                 </Text>
                 <Text color="gray.600" fontSize="lg">
-                  <strong>For Farmers:</strong> Opaque, slow loan processes with high rejection rates
+                  <strong>For Farmers:</strong> Opaque, slow loan processes with high rejection rates.
                 </Text>
                 <Text color="gray.600" fontSize="lg">
-                  <strong>For Everyone:</strong> Manual systems prone to inefficiency and fraud
+                  <strong>For Everyone:</strong> Manual systems prone to inefficiency and fraud.
                 </Text>
               </VStack>
               <Button
@@ -280,7 +271,6 @@ export default function HomePage() {
                 Learn More About Our Mission
               </Button>
             </VStack>
-
             <Box position="relative">
               <Image
                 src="https://images.unsplash.com/photo-1500595046743-cd271d694d30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
@@ -314,18 +304,17 @@ export default function HomePage() {
           <Box order={{ base: 2, lg: 1 }}>
             <Image
               src="https://images.unsplash.com/photo-1559827260-dc66d52bef19?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-              alt="Blockchain technology"
+              alt="Crowdfunding platform"
               borderRadius="xl"
               boxShadow="xl"
             />
           </Box>
-
           <VStack spacing={6} align="start" order={{ base: 1, lg: 2 }}>
             <Badge colorScheme="green" fontSize="sm" px={3} py={1}>
               Our Solution
             </Badge>
             <Heading fontSize="3xl" color="gray.800">
-              Blockchain-Powered Transparency
+              Transparent Crowdfunding
             </Heading>
             <VStack spacing={4} align="start">
               <HStack align="start">
@@ -338,7 +327,7 @@ export default function HomePage() {
                   flexShrink={0}
                 />
                 <Text color="gray.600" fontSize="lg">
-                  <strong>Smart Contract Escrow:</strong> Funds automatically released when project goals are met
+                  <strong>Secure Funding:</strong> Funds are released when project goals are met.
                 </Text>
               </HStack>
               <HStack align="start">
@@ -351,7 +340,7 @@ export default function HomePage() {
                   flexShrink={0}
                 />
                 <Text color="gray.600" fontSize="lg">
-                  <strong>Verified Farmers:</strong> Admin-approved participants ensure project legitimacy
+                  <strong>Verified Projects:</strong> Approved projects ensure legitimacy and trust.
                 </Text>
               </HStack>
               <HStack align="start">
@@ -364,7 +353,7 @@ export default function HomePage() {
                   flexShrink={0}
                 />
                 <Text color="gray.600" fontSize="lg">
-                  <strong>Price Stable:</strong> USDC stablecoin eliminates cryptocurrency volatility
+                  <strong>Stable Transactions:</strong> Reliable platform eliminates financial uncertainty.
                 </Text>
               </HStack>
             </VStack>
@@ -387,7 +376,7 @@ export default function HomePage() {
             </Heading>
             <Text fontSize="lg" maxW="2xl">
               Join the movement to transform agricultural finance in Rwanda.
-              Every contribution directly supports a farming family's future.
+              Every contribution directly supports a farming family&apos;s future.
             </Text>
             <HStack spacing={4}>
               <Button

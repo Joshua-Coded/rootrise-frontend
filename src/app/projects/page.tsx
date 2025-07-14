@@ -22,7 +22,6 @@ import {
   Progress,
   Badge,
   Image,
-  Flex,
   InputGroup,
   InputLeftElement,
   Input,
@@ -32,6 +31,23 @@ import {
   AlertIcon,
   AlertDescription,
 } from '@chakra-ui/react';
+
+// Define types for better type safety
+interface Project {
+  id: number;
+  title: string;
+  farmer: string;
+  goal: number;
+  amountRaised: number;
+  deadline: number;
+  createdAt: number;
+  isOpen: boolean;
+}
+
+interface ProjectStatus {
+  status: string;
+  color: string;
+}
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -43,8 +59,8 @@ export default function ProjectsPage() {
   const bg = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
 
-  // Mock project data
-  const projects = [
+  // Mock project data - wrapped in useMemo to prevent recreation on every render
+  const projects = useMemo<Project[]>(() => [
     {
       id: 0,
       title: 'Coffee Farm Expansion',
@@ -75,13 +91,13 @@ export default function ProjectsPage() {
       createdAt: Math.floor(Date.now() / 1000) - 45 * 24 * 3600,
       isOpen: false,
     },
-  ];
+  ], []);
 
   const formatUSDC = (value: number) => (value / 1e6).toFixed(2);
 
   // Filter and sort projects
   const filteredProjects = useMemo(() => {
-    let filtered = projects.filter((project) => {
+    const filtered = projects.filter((project) => {
       const matchesSearch = project.title
         ? project.title.toLowerCase().includes(searchTerm.toLowerCase())
         : false;
@@ -117,7 +133,7 @@ export default function ProjectsPage() {
     return filtered;
   }, [projects, searchTerm, sortBy, filterStatus]);
 
-  const getProjectStatus = (project: any) => {
+  const getProjectStatus = (project: Project): ProjectStatus => {
     const now = Date.now() / 1000;
     const isExpired = project.deadline ? Number(project.deadline) < now : false;
     const isFunded = project.amountRaised >= project.goal;
@@ -170,7 +186,7 @@ export default function ProjectsPage() {
             </Heading>
             <Text fontSize="lg" color="gray.600" maxW="2xl">
               Discover and support verified farming projects across Rwanda.
-              Every contribution directly impacts a farmer's livelihood.
+              Every contribution directly impacts a farmer&apos;s livelihood.
             </Text>
           </VStack>
 
