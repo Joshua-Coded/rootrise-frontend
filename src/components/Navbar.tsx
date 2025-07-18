@@ -1,6 +1,8 @@
 "use client";
 import { HamburgerIcon } from "@chakra-ui/icons";
 import { usePathname, useRouter } from "next/navigation";
+import { useAccount } from "wagmi";
+import { WalletConnectButton } from "@/components/WalletConnect";
 
 import {
   Box,
@@ -25,7 +27,7 @@ export function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const isConnected = true; // Mock for UI preview
+  const { isConnected } = useAccount(); // Use actual wallet connection status
 
   const bg = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
@@ -112,15 +114,9 @@ export function Navbar() {
 
           {/* Right Side */}
           <HStack spacing={4}>
-            {/* Wallet Connect */}
+            {/* Wallet Connect - Desktop */}
             <Box display={{ base: 'none', md: 'block' }}>
-              <Button
-                size="sm"
-                colorScheme="brand"
-                onClick={() => alert('Wallet connection disabled for UI preview')}
-              >
-                {isConnected ? 'Connected' : 'Connect Wallet'}
-              </Button>
+              <WalletConnectButton />
             </Box>
 
             {/* Mobile Menu Button */}
@@ -180,16 +176,7 @@ export function Navbar() {
 
               {/* Wallet Connect Mobile */}
               <Box pt={4}>
-                <Button
-                  size="sm"
-                  colorScheme="brand"
-                  onClick={() => {
-                    alert('Wallet connection disabled for UI preview');
-                    onClose();
-                  }}
-                >
-                  {isConnected ? 'Connected' : 'Connect Wallet'}
-                </Button>
+                <WalletConnectButton />
               </Box>
 
               {/* Quick Actions */}
@@ -219,6 +206,17 @@ export function Navbar() {
                     }}
                   >
                     My Dashboard
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    colorScheme="green"
+                    onClick={() => {
+                      router.push('/farmers/apply');
+                      onClose();
+                    }}
+                  >
+                    Apply as Farmer
                   </Button>
                 </VStack>
               )}

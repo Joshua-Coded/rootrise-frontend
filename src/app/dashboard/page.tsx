@@ -1,7 +1,11 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
+import { WalletConnect } from "@/components/WalletConnect";
+import { useRootRiseContract } from "@/hooks/useRootRiseContract";
 
 import {
   Box,
@@ -37,54 +41,88 @@ import {
   Alert,
   AlertIcon,
   AlertDescription,
+  Spinner,
 } from '@chakra-ui/react';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const isConnected = false; // Static for UI preview
-  const address = '0x1234567890abcdef1234567890abcdef12345678'; // Mock address
-  const isFarmerWhitelisted = true; // Mock for UI
+  const { address, isConnected } = useAccount();
+  const {
+    useGetTotalProjects,
+    useGetProject,
+    useGetContribution,
+    useUSDCBalance,
+    useIsFarmerWhitelisted,
+    formatUSDC,
+    useFaucet,
+  } = useRootRiseContract();
+
+  const { data: totalProjects } = useGetTotalProjects();
+  const { data: usdcBalance } = useUSDCBalance(address || '');
+  const { data: isFarmerWhitelisted } = useIsFarmerWhitelisted(address || '');
+  const { claimFromFaucet, isLoading: isFaucetLoading } = useFaucet();
 
   const bg = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
 
-  // Mock project data
-  const usdcBalance = 1000; // Mock USDC balance
-  const projects = [
-    {
-      id: 0,
-      title: 'Coffee Farm Expansion',
-      farmer: address,
-      goal: 10000,
-      amountRaised: 7500,
-      deadline: Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
-      isOpen: true,
-    },
-    {
-      id: 1,
-      title: 'Organic Vegetable Farm',
-      farmer: address,
-      goal: 5000,
-      amountRaised: 2000,
-      deadline: Math.floor(Date.now() / 1000) + 3 * 24 * 3600,
-      isOpen: true,
-    },
-  ];
-  const userContributions = [
-    { projectId: 0, amount: 500 },
-    { projectId: 1, amount: 200 },
-  ];
-  const userProjects = projects.filter(
-    (project) => project.farmer.toLowerCase() === address.toLowerCase()
-  );
+  // Generate array of project IDs to fetch
+  const projectIds = useMemo(() => {
+    if (!totalProjects) return [];
+    return Array.from({ length: Number(totalProjects) }, (_, i) => i);
+  }, [totalProjects]);
 
-  // Mock user stats
-  const userStats = {
-    totalContributed: 700, // Mock sum of contributions
-    projectsSupported: userContributions.length,
-    projectsCreated: userProjects.length,
-    totalRaised: userProjects.reduce((sum, project) => sum + project.amountRaised, 0),
-  };
+  // Fetch all projects and user contributions
+  const projectQueries = projectIds.map(id => useGetProject(id));
+  const contributionQueries = projectIds.map(id => useGetContribution(id, address || ''));
+
+  const userContributions = useMemo(() => {
+    return contributionQueries
+      .map((query, index) => ({
+        projectId: index,
+        amount: query.data || BigInt(0),
+        isLoading: query.isLoading,
+      }))
+      .filter(contrib => contrib.amount > BigInt(0));
+  }, [contributionQueries]);
+
+  const projects = useMemo(() => {
+    return projectQueries
+      .map((query, index) => ({
+        id: index,
+        ...query.data,
+        isLoading: query.isLoading,
+      }))
+      .filter(project => project.farmer);
+  }, [projectQueries]);
+
+  const userProjects = useMemo(() => {
+    return projects.filter(project => 
+      project.farmer?.toLowerCase() === address?.toLowerCase()
+    );
+  }, [projects, address]);
+
+  // Calculate user statistics with proper null checks
+  const userStats = useMemo(() => {
+    const totalContributed = userContributions.reduce(
+      (sum, contrib) => sum + Number(contrib.amount), 
+      0
+    );
+    
+    const projectsSupported = userContributions.length;
+    const projectsCreated = userProjects.length;
+    
+    const totalRaised = userProjects.reduce(
+      (sum, project) => sum + Number(project.amountRaised || BigInt(0)), 
+      0
+    );
+
+    return {
+      totalContributed: totalContributed / 1e6, // Convert from 6 decimals
+      projectsSupported,
+      projectsCreated,
+      totalRaised: totalRaised / 1e6,
+    };
+  }, [userContributions, userProjects]);
 
   if (!isConnected) {
     return (
@@ -98,13 +136,7 @@ export default function DashboardPage() {
             <Text textAlign="center" color="gray.600" fontSize="lg">
               Please connect your wallet to view your dashboard
             </Text>
-            <Button
-              size="lg"
-              colorScheme="brand"
-              onClick={() => alert('Wallet connection disabled for UI preview')}
-            >
-              Connect Wallet
-            </Button>
+            <WalletConnect />
           </VStack>
         </Container>
         <Footer />
@@ -115,8 +147,10 @@ export default function DashboardPage() {
   return (
     <Box minH="100vh" bg={bg}>
       <Navbar />
+      
       <Container maxW="7xl" py={8}>
         <VStack spacing={8}>
+          {/* Header */}
           <VStack spacing={4} w="full">
             <Heading fontSize="3xl" color="gray.800">
               Your Dashboard
@@ -126,6 +160,7 @@ export default function DashboardPage() {
             </Text>
           </VStack>
 
+          {/* User Status */}
           <Card w="full" bg={cardBg}>
             <CardBody>
               <HStack justify="space-between" wrap="wrap" spacing={4}>
@@ -134,7 +169,7 @@ export default function DashboardPage() {
                     Wallet Address
                   </Text>
                   <Text fontSize="lg" fontWeight="bold" color="gray.800">
-                    {address.slice(0, 10)}...{address.slice(-8)}
+                    {address?.slice(0, 10)}...{address?.slice(-8)}
                   </Text>
                   <HStack spacing={2}>
                     <Badge colorScheme="green">Connected</Badge>
@@ -143,18 +178,21 @@ export default function DashboardPage() {
                     )}
                   </HStack>
                 </VStack>
+
                 <VStack align="end" spacing={2}>
                   <Text fontSize="sm" color="gray.600">
                     USDC Balance
                   </Text>
                   <Text fontSize="2xl" fontWeight="bold" color="brand.500">
-                    {usdcBalance.toFixed(2)} USDC
+                    {usdcBalance ? formatUSDC(usdcBalance) : '0'} USDC
                   </Text>
                   <Button
                     size="sm"
                     colorScheme="brand"
                     variant="outline"
-                    onClick={() => alert('Faucet disabled for UI preview')}
+                    onClick={() => claimFromFaucet(1000)}
+                    isLoading={isFaucetLoading}
+                    loadingText="Claiming..."
                   >
                     Get Test USDC
                   </Button>
@@ -163,6 +201,7 @@ export default function DashboardPage() {
             </CardBody>
           </Card>
 
+          {/* Statistics */}
           <SimpleGrid columns={{ base: 2, md: 4 }} spacing={6} w="full">
             <Stat bg={cardBg} p={6} borderRadius="xl" textAlign="center">
               <StatNumber fontSize="2xl" color="brand.500">
@@ -171,6 +210,7 @@ export default function DashboardPage() {
               <StatLabel>Total Contributed</StatLabel>
               <StatHelpText>As an investor</StatHelpText>
             </Stat>
+
             <Stat bg={cardBg} p={6} borderRadius="xl" textAlign="center">
               <StatNumber fontSize="2xl" color="blue.500">
                 {userStats.projectsSupported}
@@ -178,6 +218,7 @@ export default function DashboardPage() {
               <StatLabel>Projects Supported</StatLabel>
               <StatHelpText>As an investor</StatHelpText>
             </Stat>
+
             <Stat bg={cardBg} p={6} borderRadius="xl" textAlign="center">
               <StatNumber fontSize="2xl" color="green.500">
                 {userStats.projectsCreated}
@@ -185,15 +226,17 @@ export default function DashboardPage() {
               <StatLabel>Projects Created</StatLabel>
               <StatHelpText>As a farmer</StatHelpText>
             </Stat>
+
             <Stat bg={cardBg} p={6} borderRadius="xl" textAlign="center">
               <StatNumber fontSize="2xl" color="purple.500">
-                ${(userStats.totalRaised / 1e6).toFixed(2)}
+                ${userStats.totalRaised.toFixed(2)}
               </StatNumber>
               <StatLabel>Total Raised</StatLabel>
               <StatHelpText>For your projects</StatHelpText>
             </Stat>
           </SimpleGrid>
 
+          {/* Main Content Tabs */}
           <Card w="full" bg={cardBg}>
             <Tabs variant="line" colorScheme="brand">
               <TabList px={6} pt={4}>
@@ -201,17 +244,20 @@ export default function DashboardPage() {
                 <Tab>My Projects</Tab>
                 <Tab>Quick Actions</Tab>
               </TabList>
+
               <TabPanels>
+                {/* Contributions Tab */}
                 <TabPanel>
                   <VStack spacing={4} align="start">
                     <Text fontSize="lg" fontWeight="bold" color="gray.800">
                       Your Investment Portfolio
                     </Text>
+                    
                     {userContributions.length === 0 ? (
                       <Alert status="info" borderRadius="md">
                         <AlertIcon />
                         <AlertDescription>
-                          You haven&apos;t contributed to any projects yet.
+                          You haven't contributed to any projects yet. 
                           <Button
                             ml={2}
                             size="sm"
@@ -237,35 +283,48 @@ export default function DashboardPage() {
                           </Thead>
                           <Tbody>
                             {userContributions.map((contribution) => {
-                              const project = projects.find((p) => p.id === contribution.projectId);
-                              if (!project) return null;
+                              const project = projects.find(p => p.id === contribution.projectId);
+                              if (!project || !project.goal || !project.amountRaised) return null;
 
-                              const progress = (project.amountRaised / project.goal) * 100;
+                              const progress = project.goal > BigInt(0) 
+                                ? (Number(project.amountRaised) / Number(project.goal)) * 100 
+                                : 0;
+                              
                               const now = Date.now() / 1000;
-                              const isExpired = Number(project.deadline) < now;
+                              const isExpired = project.deadline ? Number(project.deadline) < now : false;
                               const isFunded = project.amountRaised >= project.goal;
-                              const status = isFunded ? 'Funded' : isExpired ? 'Expired' : 'Active';
-                              const statusColor = isFunded ? 'green' : isExpired ? 'red' : 'blue';
+                              
+                              let status = 'Active';
+                              let statusColor = 'blue';
+                              if (isFunded) {
+                                status = 'Funded';
+                                statusColor = 'green';
+                              } else if (isExpired) {
+                                status = 'Expired';
+                                statusColor = 'red';
+                              }
 
                               return (
                                 <Tr key={contribution.projectId}>
                                   <Td>
                                     <VStack align="start" spacing={1}>
                                       <Text fontWeight="bold" fontSize="sm">
-                                        {project.title}
+                                        {project.title || `Project #${contribution.projectId}`}
                                       </Text>
                                       <Text fontSize="xs" color="gray.500">
-                                        Goal: ${(project.goal / 1e6).toFixed(2)}
+                                        Goal: ${formatUSDC(project.goal)}
                                       </Text>
                                     </VStack>
                                   </Td>
                                   <Td>
                                     <Text fontWeight="bold" color="brand.500">
-                                      ${(contribution.amount / 1e6).toFixed(2)}
+                                      ${formatUSDC(contribution.amount)}
                                     </Text>
                                   </Td>
                                   <Td>
-                                    <Badge colorScheme={statusColor}>{status}</Badge>
+                                    <Badge colorScheme={statusColor}>
+                                      {status}
+                                    </Badge>
                                   </Td>
                                   <Td>
                                     <VStack align="start" spacing={1}>
@@ -297,6 +356,8 @@ export default function DashboardPage() {
                     )}
                   </VStack>
                 </TabPanel>
+
+                {/* Projects Tab */}
                 <TabPanel>
                   <VStack spacing={4} align="start">
                     <HStack justify="space-between" w="full">
@@ -313,6 +374,7 @@ export default function DashboardPage() {
                         </Button>
                       )}
                     </HStack>
+
                     {!isFarmerWhitelisted ? (
                       <Alert status="info" borderRadius="md">
                         <AlertIcon />
@@ -333,7 +395,7 @@ export default function DashboardPage() {
                       <Alert status="info" borderRadius="md">
                         <AlertIcon />
                         <AlertDescription>
-                          You haven&apos;t created any projects yet.
+                          You haven't created any projects yet.
                           <Button
                             ml={2}
                             size="sm"
@@ -348,18 +410,33 @@ export default function DashboardPage() {
                     ) : (
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                         {userProjects.map((project) => {
-                          const progress = (project.amountRaised / project.goal) * 100;
+                          if (!project.goal || !project.amountRaised) return null;
+
+                          const progress = project.goal > BigInt(0) 
+                            ? (Number(project.amountRaised) / Number(project.goal)) * 100 
+                            : 0;
+                          
                           const now = Date.now() / 1000;
-                          const isExpired = Number(project.deadline) < now;
+                          const isExpired = project.deadline ? Number(project.deadline) < now : false;
                           const isFunded = project.amountRaised >= project.goal;
-                          const status = isFunded ? 'Funded' : isExpired ? 'Expired' : 'Active';
-                          const statusColor = isFunded ? 'green' : isExpired ? 'red' : 'blue';
+                          
+                          let status = 'Active';
+                          let statusColor = 'blue';
+                          if (isFunded) {
+                            status = 'Funded';
+                            statusColor = 'green';
+                          } else if (isExpired) {
+                            status = 'Expired';
+                            statusColor = 'red';
+                          }
 
                           return (
                             <Card key={project.id} variant="outline">
                               <CardHeader pb={2}>
                                 <HStack justify="space-between">
-                                  <Badge colorScheme={statusColor}>{status}</Badge>
+                                  <Badge colorScheme={statusColor}>
+                                    {status}
+                                  </Badge>
                                   <Text fontSize="sm" color="gray.500">
                                     Project #{project.id}
                                   </Text>
@@ -368,8 +445,9 @@ export default function DashboardPage() {
                               <CardBody pt={0}>
                                 <VStack spacing={3} align="start">
                                   <Text fontWeight="bold" fontSize="md">
-                                    {project.title}
+                                    {project.title || `Project #${project.id}`}
                                   </Text>
+                                  
                                   <Box w="full">
                                     <HStack justify="space-between" mb={1}>
                                       <Text fontSize="sm" color="gray.600">
@@ -386,13 +464,14 @@ export default function DashboardPage() {
                                     />
                                     <HStack justify="space-between" mt={1}>
                                       <Text fontSize="sm" color="gray.600">
-                                        ${(project.amountRaised / 1e6).toFixed(2)}
+                                        ${formatUSDC(project.amountRaised)}
                                       </Text>
                                       <Text fontSize="sm" color="gray.600">
-                                        ${(project.goal / 1e6).toFixed(2)}
+                                        ${formatUSDC(project.goal)}
                                       </Text>
                                     </HStack>
                                   </Box>
+
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -411,11 +490,14 @@ export default function DashboardPage() {
                     )}
                   </VStack>
                 </TabPanel>
+
+                {/* Quick Actions Tab */}
                 <TabPanel>
                   <VStack spacing={6} align="start">
                     <Text fontSize="lg" fontWeight="bold" color="gray.800">
                       Quick Actions
                     </Text>
+
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="full">
                       <Card variant="outline" _hover={{ bg: 'brand.50' }}>
                         <CardBody textAlign="center">
@@ -435,6 +517,7 @@ export default function DashboardPage() {
                           </VStack>
                         </CardBody>
                       </Card>
+
                       {isFarmerWhitelisted && (
                         <Card variant="outline" _hover={{ bg: 'blue.50' }}>
                           <CardBody textAlign="center">
@@ -455,6 +538,7 @@ export default function DashboardPage() {
                           </CardBody>
                         </Card>
                       )}
+
                       {!isFarmerWhitelisted && (
                         <Card variant="outline" _hover={{ bg: 'green.50' }}>
                           <CardBody textAlign="center">
@@ -475,6 +559,7 @@ export default function DashboardPage() {
                           </CardBody>
                         </Card>
                       )}
+
                       <Card variant="outline" _hover={{ bg: 'purple.50' }}>
                         <CardBody textAlign="center">
                           <VStack spacing={3}>
@@ -486,7 +571,9 @@ export default function DashboardPage() {
                             </Text>
                             <Button
                               colorScheme="purple"
-                              onClick={() => alert('Faucet disabled for UI preview')}
+                              onClick={() => claimFromFaucet(1000)}
+                              isLoading={isFaucetLoading}
+                              loadingText="Claiming..."
                             >
                               Claim 1,000 USDC
                             </Button>
@@ -500,6 +587,7 @@ export default function DashboardPage() {
             </Tabs>
           </Card>
 
+          {/* Help Section */}
           <Card w="full" bg="brand.50" border="1px" borderColor="brand.200">
             <CardBody>
               <VStack spacing={3} textAlign="center">
@@ -532,6 +620,7 @@ export default function DashboardPage() {
           </Card>
         </VStack>
       </Container>
+
       <Footer />
     </Box>
   );

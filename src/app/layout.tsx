@@ -1,14 +1,18 @@
-"use client";
-import { ChakraProvider } from "@chakra-ui/react";
-import { theme } from "../lib/theme";
+import { Providers } from "../components/providers";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// Update your app/layout.tsx
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
-        <ChakraProvider theme={theme}>
+        <Providers>
           {children}
-        </ChakraProvider>
+        </Providers>
       </body>
     </html>
   );
