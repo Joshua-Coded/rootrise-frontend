@@ -3,7 +3,8 @@ import { formatUnits, parseUnits } from "ethers";
 import { useState } from "react";
 import { useAccount, useChainId, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { sepolia } from "wagmi/chains";
-import { MOCK_USDC_ABI, ROOTRISE_ABI } from "@/types/contracts";
+import { MOCK_USDC_ABI, USDC_DECIMALS, formatUSDCAmount, parseUSDCAmount } from "@/types/mockusdc-contract";
+import { ROOTRISE_ABI } from "@/types/rootrise-contract";
 
 // Contract addresses from your .env
 const ROOTRISE_ADDRESS = process.env.NEXT_PUBLIC_ROOTRISE_CONTRACT as `0x${string}`;
@@ -343,9 +344,9 @@ export function useRootRiseContract() {
     return { removeFarmer, isLoading };
   };
 
+  // FIXED: Regular createProject function (for whitelisted farmers calling themselves)
   const useCreateProject = () => {
     const createProject = async (
-      farmerAddress: string,
       title: string,
       goalInUSDC: string,
       durationInDays: number
@@ -354,14 +355,13 @@ export function useRootRiseContract() {
 
       try {
         setIsLoading(true);
-        const goalWei = parseUnits(goalInUSDC, 6);
+        const goalWei = parseUSDCAmount(goalInUSDC);
         
         const hash = await writeContract({
           address: ROOTRISE_ADDRESS,
           abi: ROOTRISE_ABI,
           functionName: 'createProject',
           args: [
-            farmerAddress as `0x${string}`,
             title,
             goalWei,
             BigInt(durationInDays)
@@ -394,24 +394,34 @@ export function useRootRiseContract() {
     return { createProject, isLoading };
   };
 
-  const useContribute = () => {
-    const contribute = async (projectId: number, amountInUSDC: string) => {
-      if (!checkPrerequisites()) return;
+  // NEW: Admin function to create project for a farmer
+  const useCreateProjectForFarmer = () => {
+    const createProjectForFarmer = async (
+      farmerAddress: string,
+      title: string,
+      goalInUSDC: string,
+      durationInDays: number
+    ) => {
+      if (!checkPrerequisites()) return null;
 
       try {
         setIsLoading(true);
-        const amountWei = parseUnits(amountInUSDC, 6);
+        const goalWei = parseUSDCAmount(goalInUSDC);
         
         const hash = await writeContract({
           address: ROOTRISE_ADDRESS,
           abi: ROOTRISE_ABI,
-          functionName: 'contribute',
-          args: [BigInt(projectId), amountWei],
-          gas: 150000n, // Set reasonable gas limit
+          functionName: 'createProjectForFarmer',
+          args: [
+            farmerAddress as `0x${string}`,
+            title,
+            goalWei,
+            BigInt(durationInDays)
+          ],
         });
         
         toast({
-          title: 'Contributing...',
+          title: 'Creating Project for Farmer...',
           description: 'Transaction submitted to blockchain',
           status: 'info',
           duration: 3000,
@@ -419,7 +429,70 @@ export function useRootRiseContract() {
         
         return hash;
       } catch (error: any) {
-        console.error('Contribution error:', error);
+        console.error('Create project for farmer error:', error);
+        toast({
+          title: 'Project Creation Error',
+          description: error.message || 'Failed to create project for farmer',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    return { createProjectForFarmer, isLoading };
+  };
+
+  // Just replace your useContribute function with this one:
+
+const useContribute = () => {
+  const contribute = async (projectId: number, amountInUSDC: string) => {
+    if (!checkPrerequisites()) return;
+
+    try {
+      setIsLoading(true);
+      const amountWei = parseUSDCAmount(amountInUSDC);
+      
+      const hash = await writeContract({
+        address: ROOTRISE_ADDRESS,
+        abi: ROOTRISE_ABI,
+        functionName: 'contribute',
+        args: [BigInt(projectId), amountWei],
+        gas: 300000n, // INCREASED: From 150000n to 300000n
+      });
+      
+      toast({
+        title: 'Contributing...',
+        description: 'Transaction submitted to blockchain',
+        status: 'info',
+        duration: 3000,
+      });
+      
+      return hash;
+    } catch (error: any) {
+      console.error('Contribution error:', error);
+      
+      // Better error handling
+      if (error.message?.includes('insufficient allowance')) {
+        toast({
+          title: 'Approval Required',
+          description: 'Please approve USDC spending first',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else if (error.message?.includes('insufficient balance')) {
+        toast({
+          title: 'Insufficient Balance',
+          description: 'You don\'t have enough USDC to contribute this amount',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      } else {
         toast({
           title: 'Contribution Error',
           description: error.message || 'Failed to contribute',
@@ -427,13 +500,14 @@ export function useRootRiseContract() {
           duration: 5000,
           isClosable: true,
         });
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    return { contribute, isLoading };
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  return { contribute, isLoading };
+};
 
   const useDisburseFunds = () => {
     const disburseFunds = async (projectId: number) => {
@@ -597,11 +671,13 @@ export function useRootRiseContract() {
 
       try {
         setIsLoading(true);
+        const amountWei = parseUSDCAmount(amountInUSDC.toString());
+        
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
           abi: MOCK_USDC_ABI,
           functionName: 'faucet',
-          args: [BigInt(amountInUSDC)],
+          args: [amountWei],
         });
         
         toast({
@@ -635,7 +711,7 @@ export function useRootRiseContract() {
 
       try {
         setIsLoading(true);
-        const amountWei = parseUnits(amountInUSDC, 6);
+        const amountWei = parseUSDCAmount(amountInUSDC);
         
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
@@ -677,7 +753,7 @@ export function useRootRiseContract() {
 
       try {
         setIsLoading(true);
-        const amountWei = parseUnits(amountInUSDC, 6);
+        const amountWei = parseUSDCAmount(amountInUSDC);
         
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
@@ -717,7 +793,7 @@ export function useRootRiseContract() {
 
       try {
         setIsLoading(true);
-        const amountWei = parseUnits(amountInUSDC, 6);
+        const amountWei = parseUSDCAmount(amountInUSDC);
         
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
@@ -757,7 +833,7 @@ export function useRootRiseContract() {
 
       try {
         setIsLoading(true);
-        const amountWei = parseUnits(amountInUSDC, 6);
+        const amountWei = parseUSDCAmount(amountInUSDC);
         
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
@@ -791,13 +867,13 @@ export function useRootRiseContract() {
     return { mintUSDC, isLoading };
   };
 
-  // Utility functions
+  // Utility functions using our contract type utilities
   const formatUSDC = (amount: bigint) => {
-    return formatUnits(amount, 6);
+    return formatUSDCAmount(amount);
   };
 
   const parseUSDC = (amount: string) => {
-    return parseUnits(amount, 6);
+    return parseUSDCAmount(amount);
   };
 
   return {
@@ -828,6 +904,7 @@ export function useRootRiseContract() {
     useAddFarmer,
     useRemoveFarmer,
     useCreateProject,
+    useCreateProjectForFarmer, // NEW: Admin function
     useContribute,
     useDisburseFunds,
     useClaimRefund,

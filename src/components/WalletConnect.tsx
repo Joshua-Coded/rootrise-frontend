@@ -1,6 +1,8 @@
 "use client";
+import { CheckIcon, WarningIcon } from "@chakra-ui/icons";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "ethers";
+import { useEffect, useState } from "react";
 import { useAccount, useBalance, useChainId } from "wagmi";
 import { useRootRiseContract } from "@/hooks/useRootRiseContract";
 
@@ -19,18 +21,96 @@ import {
   AlertIcon,
   AlertTitle,
   AlertDescription,
+  Progress,
+  useToast,
+  Icon,
 } from '@chakra-ui/react';
 
 export function WalletConnect() {
   const { address, isConnected } = useAccount();
-  const chainId = useChainId(); // Updated hook
+  const chainId = useChainId();
   const { data: ethBalance } = useBalance({ address });
-  const { useUSDCBalance, useFaucet, formatUSDC } = useRootRiseContract();
+  const toast = useToast();
+  const { 
+    useUSDCBalance, 
+    useUSDCAllowance,
+    useFaucet, 
+    useApproveUSDC,
+    formatUSDC, 
+    ROOTRISE_ADDRESS 
+  } = useRootRiseContract();
+  
   const { data: usdcBalance } = useUSDCBalance(address || '');
+  const { data: usdcAllowance } = useUSDCAllowance(address || '', ROOTRISE_ADDRESS);
   const { claimFromFaucet, isLoading: isFaucetLoading } = useFaucet();
+  const { approveUSDC, isLoading: isApproveLoading } = useApproveUSDC();
+
+  const [setupStep, setSetupStep] = useState(0);
+  const [isReady, setIsReady] = useState(false);
 
   const bgColor = useColorModeValue('white', 'gray.800');
   const borderColor = useColorModeValue('gray.200', 'gray.600');
+
+  // Check user readiness
+  useEffect(() => {
+    if (!isConnected || !usdcBalance || !usdcAllowance) {
+      setIsReady(false);
+      setSetupStep(0);
+      return;
+    }
+
+    const hasUSDC = usdcBalance > BigInt(0);
+    const hasApproval = usdcAllowance >= BigInt(1000000); // 1 USDC minimum
+
+    if (!hasUSDC) {
+      setSetupStep(1); // Need USDC
+      setIsReady(false);
+    } else if (!hasApproval) {
+      setSetupStep(2); // Need approval
+      setIsReady(false);
+    } else {
+      setSetupStep(3); // All set!
+      setIsReady(true);
+    }
+  }, [isConnected, usdcBalance, usdcAllowance]);
+
+  const handleGetUSDC = async () => {
+    try {
+      await claimFromFaucet(1000);
+      toast({
+        title: 'Success!',
+        description: 'Claimed 1000 test USDC',
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to claim USDC',
+        status: 'error',
+        duration: 3000,
+      });
+    }
+  };
+
+  const handleApproveUSDC = async () => {
+    try {
+      await approveUSDC('999999'); // Approve large amount
+      toast({
+        title: 'Success!',
+        description: 'USDC spending approved',
+        status: 'success',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to approve USDC',
+        status: 'error',
+        duration: 3000,
+      });
+    }
+  };
 
   if (!isConnected) {
     return (
@@ -56,7 +136,7 @@ export function WalletConnect() {
     );
   }
 
-  const isSepoliaNetwork = chainId === 11155111; // Use chainId directly
+  const isSepoliaNetwork = chainId === 11155111;
 
   return (
     <Box
@@ -81,6 +161,9 @@ export function WalletConnect() {
               <Badge colorScheme={isSepoliaNetwork ? 'blue' : 'red'}>
                 {isSepoliaNetwork ? 'Sepolia' : 'Wrong Network'}
               </Badge>
+              {isReady && (
+                <Badge colorScheme="green">Ready to Contribute</Badge>
+              )}
             </HStack>
           </VStack>
         </HStack>
@@ -100,6 +183,38 @@ export function WalletConnect() {
 
         <Divider />
 
+        {/* Setup Progress */}
+        {isSepoliaNetwork && (
+          <Box w="full" p={4} bg={isReady ? "green.50" : "orange.50"} borderRadius="md">
+            <VStack spacing={3}>
+              <HStack justify="center" spacing={2}>
+                <Icon 
+                  as={isReady ? CheckIcon : WarningIcon} 
+                  color={isReady ? "green.500" : "orange.500"} 
+                />
+                <Text fontWeight="bold" color={isReady ? "green.700" : "orange.700"}>
+                  {isReady ? "You're Ready!" : "Setup Required"}
+                </Text>
+              </HStack>
+
+              <Progress 
+                value={(setupStep / 3) * 100} 
+                colorScheme={isReady ? "green" : "orange"}
+                size="sm"
+                w="full"
+                borderRadius="full"
+              />
+
+              <Text fontSize="xs" color="gray.600" textAlign="center">
+                {setupStep === 0 && "Checking your setup..."}
+                {setupStep === 1 && "Step 1: Get test USDC tokens"}
+                {setupStep === 2 && "Step 2: Approve USDC spending"}
+                {setupStep === 3 && "All set! You can now contribute to projects"}
+              </Text>
+            </VStack>
+          </Box>
+        )}
+
         {/* Balances */}
         <VStack spacing={3} w="full">
           <Text fontSize="md" fontWeight="bold">
@@ -117,36 +232,112 @@ export function WalletConnect() {
           </Flex>
 
           {/* USDC Balance */}
-          <Flex justify="space-between" w="full">
-            <Text fontSize="sm" color="gray.600">
-              Test USDC:
-            </Text>
+          <Flex justify="space-between" w="full" align="center">
+            <HStack spacing={2}>
+              <Text fontSize="sm" color="gray.600">
+                Test USDC:
+              </Text>
+              {setupStep >= 1 && (
+                <Icon 
+                  as={CheckIcon} 
+                  color={usdcBalance && usdcBalance > BigInt(0) ? "green.500" : "gray.400"} 
+                  w={3} h={3} 
+                />
+              )}
+            </HStack>
             <Text fontSize="sm" fontWeight="bold">
               {usdcBalance ? formatUSDC(usdcBalance) : '0'} USDC
+            </Text>
+          </Flex>
+
+          {/* Approval Status */}
+          <Flex justify="space-between" w="full" align="center">
+            <HStack spacing={2}>
+              <Text fontSize="sm" color="gray.600">
+                USDC Approved:
+              </Text>
+              {setupStep >= 2 && (
+                <Icon 
+                  as={CheckIcon} 
+                  color={usdcAllowance && usdcAllowance >= BigInt(1000000) ? "green.500" : "gray.400"} 
+                  w={3} h={3} 
+                />
+              )}
+            </HStack>
+            <Text fontSize="sm" fontWeight="bold">
+              {usdcAllowance ? formatUSDC(usdcAllowance) : '0'} USDC
             </Text>
           </Flex>
         </VStack>
 
         <Divider />
 
-        {/* Faucet Section */}
+        {/* Action Buttons */}
         <VStack spacing={3} w="full">
-          <Text fontSize="sm" fontWeight="bold">
-            Need Test Tokens?
-          </Text>
-          
-          <Button
-            size="sm"
-            colorScheme="brand"
-            variant="outline"
-            onClick={() => claimFromFaucet(1000)}
-            isLoading={isFaucetLoading}
-            loadingText="Claiming..."
-            w="full"
-            isDisabled={!isSepoliaNetwork}
-          >
-            Get 1,000 Test USDC
-          </Button>
+          {setupStep === 1 && (
+            <VStack spacing={2} w="full">
+              <Text fontSize="sm" fontWeight="bold" color="orange.600">
+                Step 1: Get Test USDC
+              </Text>
+              <Button
+                size="sm"
+                colorScheme="brand"
+                onClick={handleGetUSDC}
+                isLoading={isFaucetLoading}
+                loadingText="Claiming..."
+                w="full"
+                isDisabled={!isSepoliaNetwork}
+              >
+                Get 1,000 Test USDC
+              </Button>
+            </VStack>
+          )}
+
+          {setupStep === 2 && (
+            <VStack spacing={2} w="full">
+              <Text fontSize="sm" fontWeight="bold" color="orange.600">
+                Step 2: Approve USDC Spending
+              </Text>
+              <Button
+                size="sm"
+                colorScheme="orange"
+                onClick={handleApproveUSDC}
+                isLoading={isApproveLoading}
+                loadingText="Approving..."
+                w="full"
+                isDisabled={!isSepoliaNetwork}
+              >
+                Approve USDC for Contributions
+              </Button>
+            </VStack>
+          )}
+
+          {setupStep === 3 && (
+            <VStack spacing={2} w="full">
+              <Text fontSize="sm" fontWeight="bold" color="green.600">
+                🎉 You're All Set!
+              </Text>
+              <Text fontSize="xs" color="gray.500" textAlign="center">
+                You can now contribute to any project on RootRise
+              </Text>
+            </VStack>
+          )}
+
+          {/* Additional Faucet Button (always available) */}
+          {setupStep !== 1 && (
+            <Button
+              size="xs"
+              colorScheme="gray"
+              variant="outline"
+              onClick={handleGetUSDC}
+              isLoading={isFaucetLoading}
+              loadingText="Claiming..."
+              w="full"
+              isDisabled={!isSepoliaNetwork}
+            >
+              Get More Test USDC
+            </Button>
+          )}
           
           <Text fontSize="xs" color="gray.500" textAlign="center">
             Use the faucet to get test USDC for contributing to projects
@@ -154,13 +345,14 @@ export function WalletConnect() {
         </VStack>
 
         {/* Disconnect */}
+        <Divider />
         <ConnectButton />
       </VStack>
     </Box>
   );
 }
 
-// Simplified version for header/navbar
+// Your existing simplified button component is perfect - keep it as is!
 export function WalletConnectButton() {
   return (
     <ConnectButton.Custom>

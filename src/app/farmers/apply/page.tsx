@@ -10,7 +10,6 @@ import { useRootRiseContract } from "@/hooks/useRootRiseContract";
 
 // app/farmers/apply/page.tsx
 
-
 import {
   Box,
   Container,
@@ -46,7 +45,6 @@ import {
 } from '@chakra-ui/react';
 
 interface ProjectFormData {
-  farmerAddress: string;
   title: string;
   description: string;
   goalAmount: string;
@@ -100,20 +98,12 @@ export default function FarmerApplyPage() {
     reset,
   } = useForm<ProjectFormData>({
     defaultValues: {
-      farmerAddress: address || '',
       category: 'Crop Production',
       duration: 30,
     },
   });
 
   const isOwner = address && contractOwner && address.toLowerCase() === contractOwner.toLowerCase();
-
-  // Auto-fill farmer address when wallet connects
-  React.useEffect(() => {
-    if (address) {
-      setValue('farmerAddress', address);
-    }
-  }, [address, setValue]);
 
   const handleWhitelistFarmer = async () => {
     if (!address) return;
@@ -170,8 +160,9 @@ export default function FarmerApplyPage() {
       // Combine title and description for the project title
       const projectTitle = `${data.title} - ${data.description}`;
 
+      // FIXED: Only pass 3 arguments (title, goalAmount, duration)
+      // The createProject function automatically uses the caller's address
       const hash = await createProject(
-        data.farmerAddress,
         projectTitle,
         data.goalAmount,
         data.duration
@@ -180,7 +171,7 @@ export default function FarmerApplyPage() {
       if (hash) {
         toast({
           title: 'Project Created!',
-          description: 'Your farming project has been submitted to the blockchain.',
+          description: 'Yourfarming project has been submitted to the blockchain.',
           status: 'success',
           duration: 8000,
         });
@@ -410,12 +401,11 @@ export default function FarmerApplyPage() {
                         <FormErrorMessage>{errors.location?.message}</FormErrorMessage>
                       </FormControl>
 
-                      {/* Farmer Address (readonly) */}
+                      {/* Display Farmer Address (for info only) */}
                       <FormControl>
-                        <FormLabel>Farmer Address</FormLabel>
+                        <FormLabel>Your Farmer Address</FormLabel>
                         <Input
-                          {...register('farmerAddress')}
-                          value={address}
+                          value={address || ''}
                           isReadOnly
                           bg="gray.100"
                         />
