@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "es2022",
     "lib": [
-      "es2022"
+      "es2022",
+      "dom",
+      "dom.iterable"
     ],
     "module": "esnext",
     "moduleResolution": "node",
@@ -19,15 +21,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@/components/*": [
-        "./components/*"
-      ],
-      "@/hooks/*": [
-        "./hooks/*"
-      ],
-      "@/types/*": [
-        "./types/*"
       ]
     },
     "allowJs": true,
@@ -40,12 +33,15 @@
     ]
   },
   "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
     "contracts/**/*",
     "hardhat.config.cjs",
     "scripts/**/*",
     "test/**/*",
-    "typechain-types/**/*",
-    ".next/types/**/*.ts"
+    "typechain-types/**/*"
   ],
   "exclude": [
     "node_modules",
