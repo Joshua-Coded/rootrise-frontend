@@ -169,7 +169,6 @@ export default function FarmerApplyPage() {
       const projectTitle = `${data.title} - ${data.description}`;
 
       const hash = await createProject(
-        data.farmerAddress,
         projectTitle,
         data.goalAmount,
         data.duration
