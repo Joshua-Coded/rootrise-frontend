@@ -31,6 +31,24 @@ export function WalletConnect() {
   const chainId = useChainId();
   const { data: ethBalance } = useBalance({ address });
   const toast = useToast();
+  
+  // Add error boundary state
+  const [hasError, setHasError] = useState(false);
+  const [setupStep, setSetupStep] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+
+  // Wrap contract hook calls in try-catch
+  let contractHooks;
+  try {
+    contractHooks = useRootRiseContract();
+  } catch (error) {
+    console.error('Contract hooks error:', error);
+    setHasError(true);
+  }
+
   const { 
     useUSDCBalance, 
     useUSDCAllowance,
@@ -38,43 +56,53 @@ export function WalletConnect() {
     useApproveUSDC,
     formatUSDC, 
     ROOTRISE_ADDRESS 
-  } = useRootRiseContract();
+  } = contractHooks || {};
   
-  const { data: usdcBalance } = useUSDCBalance(address || '');
-  const { data: usdcAllowance } = useUSDCAllowance(address || '', ROOTRISE_ADDRESS);
-  const { claimFromFaucet, isLoading: isFaucetLoading } = useFaucet();
-  const { approveUSDC, isLoading: isApproveLoading } = useApproveUSDC();
+  // Safe contract calls with fallbacks
+  const { data: usdcBalance } = useUSDCBalance?.(address || '') || { data: null };
+  const { data: usdcAllowance } = useUSDCAllowance?.(address || '', ROOTRISE_ADDRESS || '') || { data: null };
+  const { claimFromFaucet, isLoading: isFaucetLoading } = useFaucet?.() || { claimFromFaucet: null, isLoading: false };
+  const { approveUSDC, isLoading: isApproveLoading } = useApproveUSDC?.() || { approveUSDC: null, isLoading: false };
 
-  const [setupStep, setSetupStep] = useState(0);
-  const [isReady, setIsReady] = useState(false);
-
-  const bgColor = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-
-  // Check user readiness
+  // Check user readiness with error handling
   useEffect(() => {
-    if (!isConnected || !usdcBalance || !usdcAllowance) {
-      setIsReady(false);
-      setSetupStep(0);
-      return;
-    }
+    try {
+      if (!isConnected || !usdcBalance || !usdcAllowance) {
+        setIsReady(false);
+        setSetupStep(0);
+        return;
+      }
 
-    const hasUSDC = usdcBalance > BigInt(0);
-    const hasApproval = usdcAllowance >= BigInt(1000000); // 1 USDC minimum
+      const hasUSDC = usdcBalance > BigInt(0);
+      const hasApproval = usdcAllowance >= BigInt(1000000); // 1 USDC minimum
 
-    if (!hasUSDC) {
-      setSetupStep(1); // Need USDC
-      setIsReady(false);
-    } else if (!hasApproval) {
-      setSetupStep(2); // Need approval
-      setIsReady(false);
-    } else {
-      setSetupStep(3); // All set!
-      setIsReady(true);
+      if (!hasUSDC) {
+        setSetupStep(1); // Need USDC
+        setIsReady(false);
+      } else if (!hasApproval) {
+        setSetupStep(2); // Need approval
+        setIsReady(false);
+      } else {
+        setSetupStep(3); // All set!
+        setIsReady(true);
+      }
+    } catch (error) {
+      console.error('Wallet setup error:', error);
+      setHasError(true);
     }
   }, [isConnected, usdcBalance, usdcAllowance]);
 
   const handleGetUSDC = async () => {
+    if (!claimFromFaucet) {
+      toast({
+        title: 'Error',
+        description: 'Faucet not available. Please refresh the page.',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     try {
       await claimFromFaucet(1000);
       toast({
@@ -84,9 +112,10 @@ export function WalletConnect() {
         duration: 3000,
       });
     } catch (error) {
+      console.error('Faucet error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to claim USDC',
+        description: 'Failed to claim USDC. Please try again.',
         status: 'error',
         duration: 3000,
       });
@@ -94,6 +123,16 @@ export function WalletConnect() {
   };
 
   const handleApproveUSDC = async () => {
+    if (!approveUSDC) {
+      toast({
+        title: 'Error',
+        description: 'Approval not available. Please refresh the page.',
+        status: 'error',
+        duration: 3000,
+      });
+      return;
+    }
+
     try {
       await approveUSDC('999999'); // Approve large amount
       toast({
@@ -103,15 +142,47 @@ export function WalletConnect() {
         duration: 3000,
       });
     } catch (error) {
+      console.error('Approval error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to approve USDC',
+        description: 'Failed to approve USDC. Please try again.',
         status: 'error',
         duration: 3000,
       });
     }
   };
 
+  // Error fallback UI
+  if (hasError) {
+    return (
+      <Box
+        p={6}
+        bg={bgColor}
+        border="1px"
+        borderColor={borderColor}
+        borderRadius="xl"
+        maxW="md"
+        mx="auto"
+      >
+        <VStack spacing={4}>
+          <Alert status="warning">
+            <AlertIcon />
+            <Box>
+              <AlertTitle>Connection Issue</AlertTitle>
+              <AlertDescription>
+                There was an issue connecting to the blockchain. Please refresh the page and try again.
+              </AlertDescription>
+            </Box>
+          </Alert>
+          <Button onClick={() => window.location.reload()} size="sm" colorScheme="brand">
+            Refresh Page
+          </Button>
+        </VStack>
+      </Box>
+    );
+  }
+
+  // Not connected state
   if (!isConnected) {
     return (
       <Box
@@ -246,7 +317,7 @@ export function WalletConnect() {
               )}
             </HStack>
             <Text fontSize="sm" fontWeight="bold">
-              {usdcBalance ? formatUSDC(usdcBalance) : '0'} USDC
+              {usdcBalance && formatUSDC ? formatUSDC(usdcBalance) : '0'} USDC
             </Text>
           </Flex>
 
@@ -265,7 +336,7 @@ export function WalletConnect() {
               )}
             </HStack>
             <Text fontSize="sm" fontWeight="bold">
-              {usdcAllowance ? formatUSDC(usdcAllowance) : '0'} USDC
+              {usdcAllowance && formatUSDC ? formatUSDC(usdcAllowance) : '0'} USDC
             </Text>
           </Flex>
         </VStack>
@@ -352,7 +423,7 @@ export function WalletConnect() {
   );
 }
 
-// Your existing simplified button component is perfect - keep it as is!
+// Simplified button component for navigation
 export function WalletConnectButton() {
   return (
     <ConnectButton.Custom>
