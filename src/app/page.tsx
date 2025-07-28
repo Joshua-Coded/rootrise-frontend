@@ -394,7 +394,7 @@ export default function HomePage() {
                 borderColor="white"
                 color="white"
                 _hover={{ bg: 'whiteAlpha.200' }}
-                onClick={() => router.push('/farmers')}
+                onClick={() => router.push('/farmers/apply')}
               >
                 Apply as Farmer
               </Button>

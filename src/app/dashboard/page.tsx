@@ -532,7 +532,7 @@ export default function DashboardPage() {
                         <Button
                           size="sm"
                           colorScheme="brand"
-                          onClick={() => router.push('/farmers/create-project')}
+                          onClick={() => router.push('/farmers/apply')}
                         >
                           Create New Project
                         </Button>
