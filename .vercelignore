@@ -1,0 +1,9 @@
+contracts/
+scripts/
+test/
+hardhat.config.*
+*.sol
+coverage/
+cache/
+artifacts/
+typechain-types/
