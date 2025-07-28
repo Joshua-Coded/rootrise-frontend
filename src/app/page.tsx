@@ -73,7 +73,7 @@ export default function HomePage() {
             lineHeight="shorter"
           >
             Fintech for the
-            <br />
+            <br/>
             Thousand Hills
           </Heading>
           <Text
