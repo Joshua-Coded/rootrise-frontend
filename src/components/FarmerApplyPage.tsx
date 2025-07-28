@@ -3,6 +3,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { FaImage, FaPlus, FaTrash } from "react-icons/fa";
 import { useAccount } from "wagmi";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
@@ -40,12 +41,22 @@ import {
   SimpleGrid,
   useColorModeValue,
   useToast,
-  Spinner,
   Select,
+  Image,
+  AspectRatio,
+  IconButton,
+  Icon,
+  useDisclosure,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
 } from '@chakra-ui/react';
 
 interface ProjectFormData {
-  farmerAddress: string;
   title: string;
   description: string;
   goalAmount: string;
@@ -85,8 +96,10 @@ export default function FarmerApplyPage() {
   const { createProject, isLoading: isCreatingProject } = useCreateProject();
   const { addFarmer, isLoading: isAddingFarmer } = useAddFarmer();
 
-  const [step, setStep] = useState<'farmer-info' | 'project-details'>('farmer-info');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageUrls, setImageUrls] = useState<string[]>(['']);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const bg = useColorModeValue('gray.50', 'gray.900');
   const cardBg = useColorModeValue('white', 'gray.800');
@@ -100,7 +113,6 @@ export default function FarmerApplyPage() {
     reset,
   } = useForm<ProjectFormData>({
     defaultValues: {
-      farmerAddress: address || '',
       category: 'Crop Production',
       duration: 30,
     },
@@ -108,31 +120,57 @@ export default function FarmerApplyPage() {
 
   const isOwner = address && contractOwner && address.toLowerCase() === contractOwner.toLowerCase();
 
-  // Auto-fill farmer address when wallet connects
-  React.useEffect(() => {
-    if (address) {
-      setValue('farmerAddress', address);
+  const addImageUrl = () => {
+    if (imageUrls.length < 3) {
+      setImageUrls([...imageUrls, '']);
     }
-  }, [address, setValue]);
+  };
+
+  const removeImageUrl = (index: number) => {
+    const newUrls = imageUrls.filter((_, i) => i !== index);
+    setImageUrls(newUrls.length === 0 ? [''] : newUrls);
+  };
+
+  const updateImageUrl = (index: number, url: string) => {
+    const newUrls = [...imageUrls];
+    newUrls[index] = url;
+    setImageUrls(newUrls);
+  };
+
+  const isValidImageUrl = (url: string) => {
+    return url.match(/\.(jpeg|jpg|gif|png|webp)$/) != null || 
+           url.includes('unsplash.com') || 
+           url.includes('images.') ||
+           url.includes('imgur.com') ||
+           url.includes('cloudinary.com');
+  };
+
+  const openImagePreview = (index: number) => {
+    if (imageUrls[index] && isValidImageUrl(imageUrls[index])) {
+      setSelectedImageIndex(index);
+      onOpen();
+    }
+  };
 
   const handleWhitelistFarmer = async () => {
     if (!address) return;
 
     try {
       setIsSubmitting(true);
-      await addFarmer(address);
+      const hash = await addFarmer(address);
       
-      toast({
-        title: 'Success!',
-        description: 'Farmer has been whitelisted. You can now create projects.',
-        status: 'success',
-        duration: 5000,
-      });
-      
-      // Refresh the page after a short delay to update whitelist status
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      if (hash) {
+        toast({
+          title: 'Success!',
+          description: 'Farmer has been whitelisted. You can now create projects.',
+          status: 'success',
+          duration: 5000,
+        });
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
       
     } catch (error) {
       console.error('Whitelist error:', error);
@@ -165,13 +203,21 @@ export default function FarmerApplyPage() {
     try {
       setIsSubmitting(true);
 
-      // Combine title and description for the project title
-      const projectTitle = `${data.title} - ${data.description}`;
+      // Filter out empty image URLs
+      const validImageUrls = imageUrls.filter(url => url.trim() !== '');
+      
+      // For now, we'll include image URLs in the description
+      let projectDescription = data.description;
+      if (validImageUrls.length > 0) {
+        projectDescription += `\n\nProject Images: ${validImageUrls.join(', ')}`;
+      }
+
+      const projectTitle = `${data.title} - ${data.category} - ${data.location}`;
 
       const hash = await createProject(
         projectTitle,
-        data.goalAmount,
-        data.duration
+        data.goalAmount.toString(),
+        Number(data.duration)
       );
 
       if (hash) {
@@ -184,6 +230,7 @@ export default function FarmerApplyPage() {
 
         // Reset form and redirect after success
         reset();
+        setImageUrls(['']);
         setTimeout(() => {
           router.push('/projects');
         }, 3000);
@@ -335,7 +382,7 @@ export default function FarmerApplyPage() {
                             minLength: { value: 5, message: 'Title must be at least 5 characters' },
                             maxLength: { value: 100, message: 'Title must be less than 100 characters' }
                           })}
-                          placeholder="e.g., Maize Production Expansion"
+                          placeholder="e.g., Organic Coffee Farming Expansion"
                         />
                         <FormErrorMessage>{errors.title?.message}</FormErrorMessage>
                       </FormControl>
@@ -402,7 +449,7 @@ export default function FarmerApplyPage() {
                             required: 'Location is required',
                             minLength: { value: 3, message: 'Location must be at least 3 characters' }
                           })}
-                          placeholder="e.g., Kigali, Rwanda"
+                          placeholder="e.g., Musanze, Northern Rwanda"
                         />
                         <FormErrorMessage>{errors.location?.message}</FormErrorMessage>
                       </FormControl>
@@ -411,8 +458,7 @@ export default function FarmerApplyPage() {
                       <FormControl>
                         <FormLabel>Farmer Address</FormLabel>
                         <Input
-                          {...register('farmerAddress')}
-                          value={address}
+                          value={address || ''}
                           isReadOnly
                           bg="gray.100"
                         />
@@ -436,6 +482,82 @@ export default function FarmerApplyPage() {
                         Provide detailed information about your project ({watch('description')?.length || 0}/500 characters)
                       </FormHelperText>
                       <FormErrorMessage>{errors.description?.message}</FormErrorMessage>
+                    </FormControl>
+
+                    {/* Project Images Section */}
+                    <FormControl>
+                      <FormLabel>Project Images (Optional)</FormLabel>
+                      <VStack spacing={4} align="start" w="full">
+                        {imageUrls.map((url, index) => (
+                          <HStack key={index} w="full" spacing={4}>
+                            <Input
+                              placeholder="https://example.com/your-farm-image.jpg"
+                              value={url}
+                              onChange={(e) => updateImageUrl(index, e.target.value)}
+                              flex={1}
+                            />
+                            <IconButton
+                              aria-label="Preview image"
+                              icon={<FaImage />}
+                              size="sm"
+                              colorScheme="brand"
+                              onClick={() => openImagePreview(index)}
+                              isDisabled={!url || !isValidImageUrl(url)}
+                            />
+                            {imageUrls.length > 1 && (
+                              <IconButton
+                                aria-label="Remove image"
+                                icon={<FaTrash />}
+                                size="sm"
+                                colorScheme="red"
+                                variant="outline"
+                                onClick={() => removeImageUrl(index)}
+                              />
+                            )}
+                          </HStack>
+                        ))}
+
+                        {imageUrls.length < 3 && (
+                          <Button
+                            leftIcon={<FaPlus />}
+                            size="sm"
+                            variant="outline"
+                            colorScheme="brand"
+                            onClick={addImageUrl}
+                          >
+                            Add Image URL
+                          </Button>
+                        )}
+
+                        {/* Image Previews */}
+                        {imageUrls.some(url => url && isValidImageUrl(url)) && (
+                          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} w="full">
+                            {imageUrls.map((url, index) => (
+                              url && isValidImageUrl(url) && (
+                                <Box key={index} position="relative">
+                                  <AspectRatio ratio={4/3}>
+                                    <Image
+                                      src={url}
+                                      alt={`Project image ${index + 1}`}
+                                      borderRadius="md"
+                                      objectFit="cover"
+                                      border="1px"
+                                      borderColor="gray.200"
+                                      fallbackSrc="https://via.placeholder.com/300x225?text=Image+Not+Found"
+                                    />
+                                  </AspectRatio>
+                                  <Text fontSize="xs" color="gray.500" mt={1} textAlign="center">
+                                    Image {index + 1}
+                                  </Text>
+                                </Box>
+                              )
+                            ))}
+                          </SimpleGrid>
+                        )}
+                      </VStack>
+                      <FormHelperText>
+                        Add URLs of high-quality images of your farm, crops, or equipment. Use image hosting services like Imgur, Unsplash, or Google Drive shared images.
+                      </FormHelperText>
                     </FormControl>
 
                     <Divider />
@@ -499,6 +621,30 @@ export default function FarmerApplyPage() {
           </SimpleGrid>
         </VStack>
       </Container>
+
+      {/* Image Preview Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Project Image Preview</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody p={4}>
+            {selectedImageIndex !== null && imageUrls[selectedImageIndex] && (
+              <Image
+                src={imageUrls[selectedImageIndex]}
+                alt={`Project image ${selectedImageIndex + 1}`}
+                w="full"
+                h="auto"
+                borderRadius="md"
+                fallbackSrc="https://via.placeholder.com/600x400?text=Image+Not+Found"
+              />
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button onClick={onClose}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <Footer />
     </Box>
