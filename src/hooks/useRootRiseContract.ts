@@ -1,19 +1,23 @@
 import { useToast } from "@chakra-ui/react";
 import { formatUnits, parseUnits } from "ethers";
 import { useState } from "react";
-import { useAccount, useChainId, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useReadContract, useWriteContract } from "wagmi";
 import { sepolia } from "wagmi/chains";
-import { MOCK_USDC_ABI, USDC_DECIMALS, formatUSDCAmount, parseUSDCAmount } from "@/types/mockusdc-contract";
-import { ROOTRISE_ABI } from "@/types/rootrise-contract";
+import { MOCK_USDC_ABI } from "./mockUsdcAbi";
+import { ROOTRISE_ABI } from "./rootriseAbi";
 
 // Contract addresses from your .env
 const ROOTRISE_ADDRESS = process.env.NEXT_PUBLIC_ROOTRISE_CONTRACT as `0x${string}`;
 const MOCK_USDC_ADDRESS = process.env.NEXT_PUBLIC_MOCK_USDC_CONTRACT as `0x${string}`;
 
+// Utility functions for USDC formatting (6 decimals for USDC)
+const formatUSDCAmount = (amount: bigint) => formatUnits(amount, 6);
+const parseUSDCAmount = (amount: string) => parseUnits(amount, 6);
+
 export function useRootRiseContract() {
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const chainId = useChainId();
 
   // Check if on correct network
@@ -23,252 +27,192 @@ export function useRootRiseContract() {
   const checkPrerequisites = () => {
     if (!isConnected) {
       toast({
-        title: 'Wallet not connected',
-        description: 'Please connect your wallet first',
-        status: 'warning',
+        title: "Wallet not connected",
+        description: "Please connect your wallet first",
+        status: "warning",
         duration: 3000,
       });
       return false;
     }
-    
     if (!isCorrectNetwork) {
       toast({
-        title: 'Wrong network',
-        description: 'Please switch to Sepolia testnet',
-        status: 'warning',
+        title: "Wrong network",
+        description: "Please switch to Sepolia testnet",
+        status: "warning",
         duration: 3000,
       });
       return false;
     }
-    
     return true;
   };
 
-  // Read Functions
-  const useGetTotalProjects = () => {
-    return useReadContract({
+  // Read Functions - RootRise
+  const useGetTotalProjects = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'getTotalProjects',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "getTotalProjects",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: bigint };
 
-  const useGetProject = (projectId: number) => {
-    return useReadContract({
+  const useGetProject = (projectId: number) =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'getProject',
+      functionName: "getProject",
       args: [BigInt(projectId)],
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: any }; // Adjust type based on Project struct
 
-  const useGetContribution = (projectId: number, contributor: string) => {
-    return useReadContract({
+  const useGetContribution = (projectId: number, contributor: string) =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'getContribution',
+      functionName: "getContribution",
       args: [BigInt(projectId), contributor as `0x${string}`],
-      query: {
-        enabled: isConnected && isCorrectNetwork && !!contributor,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork && !!contributor },
+    }) as { data?: bigint };
 
-  const useIsFarmerWhitelisted = (farmerAddress: string) => {
-    return useReadContract({
+  const useIsFarmerApproved = (farmerAddress: string) =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'isFarmerWhitelisted',
+      functionName: "isFarmerApproved",
       args: [farmerAddress as `0x${string}`],
-      query: {
-        enabled: isConnected && isCorrectNetwork && !!farmerAddress,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork && !!farmerAddress },
+    }) as { data?: boolean };
 
-  const useGetContractBalance = () => {
-    return useReadContract({
+  const useGetFarmerApplication = (farmerAddress: string) =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'getContractBalance',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "farmerApplications",
+      args: [farmerAddress as `0x${string}`],
+      query: { enabled: isConnected && isCorrectNetwork && !!farmerAddress },
+    }) as { data?: any }; // Adjust type based on FarmerApplication struct
 
-  // Additional read functions from the real ABI
-  const useGetProjectContributors = (projectId: number) => {
-    return useReadContract({
+  const useGetContractBalance = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'getProjectContributors',
+      functionName: "getContractBalance",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: bigint };
+
+  const useGetProjectContributors = (projectId: number) =>
+    useReadContract({
+      address: ROOTRISE_ADDRESS,
+      abi: ROOTRISE_ABI,
+      functionName: "getProjectContributors",
       args: [BigInt(projectId)],
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: string[] };
 
-  const useGetMinimumContribution = () => {
-    return useReadContract({
+  const useGetMinimumContribution = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'MINIMUM_CONTRIBUTION',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "MINIMUM_CONTRIBUTION",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: bigint };
 
-  const useGetMaximumDuration = () => {
-    return useReadContract({
+  const useGetMaximumDuration = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'MAXIMUM_DURATION',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "MAXIMUM_DURATION",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: bigint };
 
-  const useGetOwner = () => {
-    return useReadContract({
+  const useGetOwner = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'owner',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "owner",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: `0x${string}` };
 
-  const useGetStablecoinAddress = () => {
-    return useReadContract({
+  const useGetStablecoinAddress = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'stablecoin',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "stablecoin",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: `0x${string}` };
 
-  const useGetProjectCounter = () => {
-    return useReadContract({
+  const useGetProjectCounter = () =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'projectCounter',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "projectCounter",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: bigint };
 
-  const useGetTotalContributions = (userAddress: string) => {
-    return useReadContract({
+  const useGetTotalContributions = (userAddress: string) =>
+    useReadContract({
       address: ROOTRISE_ADDRESS,
       abi: ROOTRISE_ABI,
-      functionName: 'totalContributions',
+      functionName: "totalContributions",
       args: [userAddress as `0x${string}`],
-      query: {
-        enabled: isConnected && isCorrectNetwork && !!userAddress,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork && !!userAddress },
+    }) as { data?: bigint };
 
-  const useIsWhitelistedFarmer = (farmerAddress: string) => {
-    return useReadContract({
-      address: ROOTRISE_ADDRESS,
-      abi: ROOTRISE_ABI,
-      functionName: 'whitelistedFarmers',
-      args: [farmerAddress as `0x${string}`],
-      query: {
-        enabled: isConnected && isCorrectNetwork && !!farmerAddress,
-      },
-    });
-  };
-
-  // USDC Token Functions
-  const useUSDCBalance = (address: string) => {
-    return useReadContract({
+  // Read Functions - USDC
+  const useUSDCBalance = (address: string) =>
+    useReadContract({
       address: MOCK_USDC_ADDRESS,
       abi: MOCK_USDC_ABI,
-      functionName: 'balanceOf',
+      functionName: "balanceOf",
       args: [address as `0x${string}`],
-      query: {
-        enabled: isConnected && isCorrectNetwork && !!address,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork && !!address },
+    }) as { data?: bigint };
 
-  const useUSDCAllowance = (owner: string, spender: string) => {
-    return useReadContract({
+  const useUSDCAllowance = (owner: string, spender: string) =>
+    useReadContract({
       address: MOCK_USDC_ADDRESS,
       abi: MOCK_USDC_ABI,
-      functionName: 'allowance',
+      functionName: "allowance",
       args: [owner as `0x${string}`, spender as `0x${string}`],
-      query: {
-        enabled: isConnected && isCorrectNetwork && !!owner && !!spender,
-      },
-    });
-  };
+      query: { enabled: isConnected && isCorrectNetwork && !!owner && !!spender },
+    }) as { data?: bigint };
 
-  const useUSDCName = () => {
-    return useReadContract({
+  const useUSDCName = () =>
+    useReadContract({
       address: MOCK_USDC_ADDRESS,
       abi: MOCK_USDC_ABI,
-      functionName: 'name',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "name",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: string };
 
-  const useUSDCSymbol = () => {
-    return useReadContract({
+  const useUSDCSymbol = () =>
+    useReadContract({
       address: MOCK_USDC_ADDRESS,
       abi: MOCK_USDC_ABI,
-      functionName: 'symbol',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "symbol",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: string };
 
-  const useUSDCDecimals = () => {
-    return useReadContract({
+  const useUSDCDecimals = () =>
+    useReadContract({
       address: MOCK_USDC_ADDRESS,
       abi: MOCK_USDC_ABI,
-      functionName: 'decimals',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "decimals",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: number };
 
-  const useUSDCTotalSupply = () => {
-    return useReadContract({
+  const useUSDCTotalSupply = () =>
+    useReadContract({
       address: MOCK_USDC_ADDRESS,
       abi: MOCK_USDC_ABI,
-      functionName: 'totalSupply',
-      query: {
-        enabled: isConnected && isCorrectNetwork,
-      },
-    });
-  };
+      functionName: "totalSupply",
+      query: { enabled: isConnected && isCorrectNetwork },
+    }) as { data?: bigint };
 
   // Write Functions
   const { writeContract } = useWriteContract();
 
-  const useAddFarmer = () => {
-    const addFarmer = async (farmerAddress: string) => {
+  const useSubmitFarmerApplication = () => {
+    const submitApplication = async (documentsHash: string, mobileMoneyAccount: string) => {
       if (!checkPrerequisites()) return null;
 
       try {
@@ -276,24 +220,22 @@ export function useRootRiseContract() {
         const hash = await writeContract({
           address: ROOTRISE_ADDRESS,
           abi: ROOTRISE_ABI,
-          functionName: 'addFarmer',
-          args: [farmerAddress as `0x${string}`],
+          functionName: "submitFarmerApplication",
+          args: [documentsHash, mobileMoneyAccount],
         });
-        
         toast({
-          title: 'Transaction Submitted',
-          description: 'Whitelisting farmer...',
-          status: 'info',
+          title: "Application Submitted",
+          description: "Your farmer application is being processed",
+          status: "info",
           duration: 3000,
         });
-        
         return hash;
       } catch (error: any) {
-        console.error('Add farmer error:', error);
+        console.error("Application error:", error);
         toast({
-          title: 'Error',
-          description: error.message || 'Failed to whitelist farmer',
-          status: 'error',
+          title: "Application Error",
+          description: error.message || "Failed to submit application",
+          status: "error",
           duration: 5000,
           isClosable: true,
         });
@@ -302,86 +244,50 @@ export function useRootRiseContract() {
         setIsLoading(false);
       }
     };
-
-    return { addFarmer, isLoading };
+    return { submitApplication, isLoading };
   };
 
-  const useRemoveFarmer = () => {
-    const removeFarmer = async (farmerAddress: string) => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        const hash = await writeContract({
-          address: ROOTRISE_ADDRESS,
-          abi: ROOTRISE_ABI,
-          functionName: 'removeFarmer',
-          args: [farmerAddress as `0x${string}`],
-        });
-        
-        toast({
-          title: 'Transaction Submitted',
-          description: 'Removing farmer from whitelist...',
-          status: 'info',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Remove farmer error:', error);
-        toast({
-          title: 'Error',
-          description: error.message || 'Failed to remove farmer',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { removeFarmer, isLoading };
-  };
-
-  // FIXED: Regular createProject function (for whitelisted farmers calling themselves)
   const useCreateProject = () => {
     const createProject = async (
       title: string,
       goalInUSDC: string,
-      durationInDays: number
+      durationInDays: number,
+      mobileMoneyAccount: string
     ) => {
       if (!checkPrerequisites()) return null;
 
       try {
         setIsLoading(true);
         const goalWei = parseUSDCAmount(goalInUSDC);
-        
+        if (!(await useIsFarmerApproved(address!).data)) {
+          toast({
+            title: "Not Approved",
+            description: "You must be an approved farmer to create a project",
+            status: "warning",
+            duration: 5000,
+          });
+          return null;
+        }
+
         const hash = await writeContract({
           address: ROOTRISE_ADDRESS,
           abi: ROOTRISE_ABI,
-          functionName: 'createProject',
-          args: [
-            title,
-            goalWei,
-            BigInt(durationInDays)
-          ],
+          functionName: "submitProject",
+          args: [title, goalWei, BigInt(durationInDays), mobileMoneyAccount],
         });
-        
         toast({
-          title: 'Creating Project...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
+          title: "Project Created",
+          description: "Your project has been submitted for approval",
+          status: "info",
           duration: 3000,
         });
-        
         return hash;
       } catch (error: any) {
-        console.error('Create project error:', error);
+        console.error("Create project error:", error);
         toast({
-          title: 'Project Creation Error',
-          description: error.message || 'Failed to create project',
-          status: 'error',
+          title: "Project Creation Error",
+          description: error.message || "Failed to create project",
+          status: "error",
           duration: 5000,
           isClosable: true,
         });
@@ -390,319 +296,64 @@ export function useRootRiseContract() {
         setIsLoading(false);
       }
     };
-
     return { createProject, isLoading };
   };
 
-  // NEW: Admin function to create project for a farmer
-  const useCreateProjectForFarmer = () => {
-    const createProjectForFarmer = async (
-      farmerAddress: string,
-      title: string,
-      goalInUSDC: string,
-      durationInDays: number
-    ) => {
+  const useContribute = () => {
+    const contribute = async (projectId: number, amountInUSDC: string) => {
       if (!checkPrerequisites()) return null;
 
       try {
         setIsLoading(true);
-        const goalWei = parseUSDCAmount(goalInUSDC);
-        
+        const amountWei = parseUSDCAmount(amountInUSDC);
+
         const hash = await writeContract({
           address: ROOTRISE_ADDRESS,
           abi: ROOTRISE_ABI,
-          functionName: 'createProjectForFarmer',
-          args: [
-            farmerAddress as `0x${string}`,
-            title,
-            goalWei,
-            BigInt(durationInDays)
-          ],
+          functionName: "contribute",
+          args: [BigInt(projectId), amountWei],
+          gas: 300000n,
         });
-        
         toast({
-          title: 'Creating Project for Farmer...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
+          title: "Contributing...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
           duration: 3000,
         });
-        
         return hash;
       } catch (error: any) {
-        console.error('Create project for farmer error:', error);
-        toast({
-          title: 'Project Creation Error',
-          description: error.message || 'Failed to create project for farmer',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
+        console.error("Contribution error:", error);
+        if (error.message?.includes("insufficient allowance")) {
+          toast({
+            title: "Approval Required",
+            description: "Please approve USDC spending first",
+            status: "warning",
+            duration: 5000,
+            isClosable: true,
+          });
+        } else if (error.message?.includes("insufficient balance")) {
+          toast({
+            title: "Insufficient Balance",
+            description: "You don't have enough USDC to contribute",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        } else {
+          toast({
+            title: "Contribution Error",
+            description: error.message || "Failed to contribute",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+        }
         throw error;
       } finally {
         setIsLoading(false);
       }
     };
-
-    return { createProjectForFarmer, isLoading };
-  };
-
-  // Just replace your useContribute function with this one:
-
-const useContribute = () => {
-  const contribute = async (projectId: number, amountInUSDC: string) => {
-    if (!checkPrerequisites()) return;
-
-    try {
-      setIsLoading(true);
-      const amountWei = parseUSDCAmount(amountInUSDC);
-      
-      const hash = await writeContract({
-        address: ROOTRISE_ADDRESS,
-        abi: ROOTRISE_ABI,
-        functionName: 'contribute',
-        args: [BigInt(projectId), amountWei],
-        gas: 300000n, // INCREASED: From 150000n to 300000n
-      });
-      
-      toast({
-        title: 'Contributing...',
-        description: 'Transaction submitted to blockchain',
-        status: 'info',
-        duration: 3000,
-      });
-      
-      return hash;
-    } catch (error: any) {
-      console.error('Contribution error:', error);
-      
-      // Better error handling
-      if (error.message?.includes('insufficient allowance')) {
-        toast({
-          title: 'Approval Required',
-          description: 'Please approve USDC spending first',
-          status: 'warning',
-          duration: 5000,
-          isClosable: true,
-        });
-      } else if (error.message?.includes('insufficient balance')) {
-        toast({
-          title: 'Insufficient Balance',
-          description: 'You don\'t have enough USDC to contribute this amount',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } else {
-        toast({
-          title: 'Contribution Error',
-          description: error.message || 'Failed to contribute',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return { contribute, isLoading };
-};
-
-  const useDisburseFunds = () => {
-    const disburseFunds = async (projectId: number) => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        
-        const hash = await writeContract({
-          address: ROOTRISE_ADDRESS,
-          abi: ROOTRISE_ABI,
-          functionName: 'disburseFunds',
-          args: [BigInt(projectId)],
-        });
-        
-        toast({
-          title: 'Disbursing Funds...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Disburse funds error:', error);
-        toast({
-          title: 'Disbursement Error',
-          description: error.message || 'Failed to disburse funds',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { disburseFunds, isLoading };
-  };
-
-  const useClaimRefund = () => {
-    const claimRefund = async (projectId: number) => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        
-        const hash = await writeContract({
-          address: ROOTRISE_ADDRESS,
-          abi: ROOTRISE_ABI,
-          functionName: 'claimRefund',
-          args: [BigInt(projectId)],
-        });
-        
-        toast({
-          title: 'Claiming Refund...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Claim refund error:', error);
-        toast({
-          title: 'Refund Error',
-          description: error.message || 'Failed to claim refund',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { claimRefund, isLoading };
-  };
-
-  const useCloseFailedProject = () => {
-    const closeFailedProject = async (projectId: number) => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        
-        const hash = await writeContract({
-          address: ROOTRISE_ADDRESS,
-          abi: ROOTRISE_ABI,
-          functionName: 'closeFailedProject',
-          args: [BigInt(projectId)],
-        });
-        
-        toast({
-          title: 'Closing Project...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Close project error:', error);
-        toast({
-          title: 'Close Project Error',
-          description: error.message || 'Failed to close project',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { closeFailedProject, isLoading };
-  };
-
-  const useEmergencyWithdraw = () => {
-    const emergencyWithdraw = async () => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        
-        const hash = await writeContract({
-          address: ROOTRISE_ADDRESS,
-          abi: ROOTRISE_ABI,
-          functionName: 'emergencyWithdraw',
-        });
-        
-        toast({
-          title: 'Emergency Withdrawal...',
-          description: 'Transaction submitted to blockchain',
-          status: 'warning',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Emergency withdraw error:', error);
-        toast({
-          title: 'Emergency Withdraw Error',
-          description: error.message || 'Failed to emergency withdraw',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { emergencyWithdraw, isLoading };
-  };
-
-  // USDC Write Functions
-  const useFaucet = () => {
-    const claimFromFaucet = async (amountInUSDC: number = 1000) => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        const amountWei = parseUSDCAmount(amountInUSDC.toString());
-        
-        const hash = await writeContract({
-          address: MOCK_USDC_ADDRESS,
-          abi: MOCK_USDC_ABI,
-          functionName: 'faucet',
-          args: [amountWei],
-        });
-        
-        toast({
-          title: 'Claiming Tokens...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Faucet error:', error);
-        toast({
-          title: 'Faucet Error',
-          description: error.message || 'Failed to claim tokens',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { claimFromFaucet, isLoading };
+    return { contribute, isLoading };
   };
 
   const useApproveUSDC = () => {
@@ -712,176 +363,272 @@ const useContribute = () => {
       try {
         setIsLoading(true);
         const amountWei = parseUSDCAmount(amountInUSDC);
-        
+
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
           abi: MOCK_USDC_ABI,
-          functionName: 'approve',
+          functionName: "approve",
           args: [ROOTRISE_ADDRESS, amountWei],
-          gas: 80000n, // Set reasonable gas limit for approval
+          gas: 80000n,
         });
-        
         toast({
-          title: 'Approving USDC...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
+          title: "Approving USDC...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
           duration: 3000,
         });
-        
         return hash;
       } catch (error: any) {
-        console.error('Approval error:', error);
+        console.error("Approval error:", error);
         toast({
-          title: 'Approval Error',
-          description: error.message || 'Failed to approve USDC',
-          status: 'error',
+          title: "Approval Error",
+          description: error.message || "Failed to approve USDC",
+          status: "error",
           duration: 5000,
           isClosable: true,
         });
-        throw error; // Re-throw so the component can handle it
+        throw error;
       } finally {
         setIsLoading(false);
       }
     };
-
     return { approveUSDC, isLoading };
   };
 
-  const useTransferUSDC = () => {
-    const transferUSDC = async (to: string, amountInUSDC: string) => {
-      if (!checkPrerequisites()) return;
+  const useFaucet = () => {
+    const claimFromFaucet = async (amountInUSDC: number = 1000) => {
+      if (!checkPrerequisites()) return null;
 
       try {
         setIsLoading(true);
-        const amountWei = parseUSDCAmount(amountInUSDC);
-        
+        const amountWei = parseUSDCAmount(amountInUSDC.toString());
+
         const hash = await writeContract({
           address: MOCK_USDC_ADDRESS,
           abi: MOCK_USDC_ABI,
-          functionName: 'transfer',
-          args: [to as `0x${string}`, amountWei],
-        });
-        
-        toast({
-          title: 'Transferring USDC...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
-          duration: 3000,
-        });
-        
-        return hash;
-      } catch (error: any) {
-        console.error('Transfer error:', error);
-        toast({
-          title: 'Transfer Error',
-          description: error.message || 'Failed to transfer USDC',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return { transferUSDC, isLoading };
-  };
-
-  const useBurnUSDC = () => {
-    const burnUSDC = async (amountInUSDC: string) => {
-      if (!checkPrerequisites()) return;
-
-      try {
-        setIsLoading(true);
-        const amountWei = parseUSDCAmount(amountInUSDC);
-        
-        const hash = await writeContract({
-          address: MOCK_USDC_ADDRESS,
-          abi: MOCK_USDC_ABI,
-          functionName: 'burn',
+          functionName: "faucet",
           args: [amountWei],
         });
-        
         toast({
-          title: 'Burning USDC...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
+          title: "Claiming Tokens...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
           duration: 3000,
         });
-        
         return hash;
       } catch (error: any) {
-        console.error('Burn error:', error);
+        console.error("Faucet error:", error);
         toast({
-          title: 'Burn Error',
-          description: error.message || 'Failed to burn USDC',
-          status: 'error',
+          title: "Faucet Error",
+          description: error.message || "Failed to claim tokens",
+          status: "error",
           duration: 5000,
           isClosable: true,
         });
+        throw error;
       } finally {
         setIsLoading(false);
       }
     };
-
-    return { burnUSDC, isLoading };
+    return { claimFromFaucet, isLoading };
   };
 
-  const useMintUSDC = () => {
-    const mintUSDC = async (to: string, amountInUSDC: string) => {
-      if (!checkPrerequisites()) return;
+  const useSubmitGovernmentApplication = () => {
+    const submitGovernmentApplication = async (
+      officialName: string,
+      officialRole: string,
+      documentsHash: string
+    ) => {
+      if (!checkPrerequisites()) return null;
 
       try {
         setIsLoading(true);
-        const amountWei = parseUSDCAmount(amountInUSDC);
-        
         const hash = await writeContract({
-          address: MOCK_USDC_ADDRESS,
-          abi: MOCK_USDC_ABI,
-          functionName: 'mint',
-          args: [to as `0x${string}`, amountWei],
+          address: ROOTRISE_ADDRESS,
+          abi: ROOTRISE_ABI,
+          functionName: "submitGovernmentApplication",
+          args: [officialName, officialRole, documentsHash],
         });
-        
         toast({
-          title: 'Minting USDC...',
-          description: 'Transaction submitted to blockchain',
-          status: 'info',
+          title: "Application Submitted",
+          description: "Your government application is being processed",
+          status: "info",
           duration: 3000,
         });
-        
         return hash;
       } catch (error: any) {
-        console.error('Mint error:', error);
+        console.error("Government application error:", error);
         toast({
-          title: 'Mint Error',
-          description: error.message || 'Failed to mint USDC',
-          status: 'error',
+          title: "Application Error",
+          description: error.message || "Failed to submit government application",
+          status: "error",
           duration: 5000,
           isClosable: true,
         });
+        throw error;
       } finally {
         setIsLoading(false);
       }
     };
-
-    return { mintUSDC, isLoading };
+    return { submitGovernmentApplication, isLoading };
   };
 
-  // Utility functions using our contract type utilities
-  const formatUSDC = (amount: bigint) => {
-    return formatUSDCAmount(amount);
+  const useAddGovernmentOfficial = () => {
+    const addGovernmentOfficial = async (officialAddress: `0x${string}`) => {
+      if (!checkPrerequisites()) return null;
+
+      try {
+        setIsLoading(true);
+        const hash = await writeContract({
+          address: ROOTRISE_ADDRESS,
+          abi: ROOTRISE_ABI,
+          functionName: "addGovernmentOfficial",
+          args: [officialAddress],
+        });
+        toast({
+          title: "Adding Official...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
+          duration: 3000,
+        });
+        return hash;
+      } catch (error: any) {
+        console.error("Add government official error:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to add government official",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    return { addGovernmentOfficial, isLoading };
   };
 
-  const parseUSDC = (amount: string) => {
-    return parseUSDCAmount(amount);
+  const useAddFarmer = () => {
+    const addFarmer = async (farmerAddress: `0x${string}`) => {
+      if (!checkPrerequisites()) return null;
+
+      try {
+        setIsLoading(true);
+        const hash = await writeContract({
+          address: ROOTRISE_ADDRESS,
+          abi: ROOTRISE_ABI,
+          functionName: "approveFarmer",
+          args: [farmerAddress],
+        });
+        toast({
+          title: "Whitelisting Farmer...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
+          duration: 3000,
+        });
+        return hash;
+      } catch (error: any) {
+        console.error("Add farmer error:", error);
+        toast({
+          title: "Error",
+          description: error.message || "Failed to whitelist farmer",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    return { addFarmer, isLoading };
   };
+
+  const useApproveProject = () => {
+    const approveProject = async (projectId: number) => {
+      if (!checkPrerequisites()) return null;
+
+      try {
+        setIsLoading(true);
+        const hash = await writeContract({
+          address: ROOTRISE_ADDRESS,
+          abi: ROOTRISE_ABI,
+          functionName: "approveProject",
+          args: [BigInt(projectId)],
+          gas: 100000n, // Reasonable gas limit for approval
+        });
+        toast({
+          title: "Approving Project...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
+          duration: 3000,
+        });
+        return hash;
+      } catch (error: any) {
+        console.error("Approve project error:", error);
+        toast({
+          title: "Approval Error",
+          description: error.message || "Failed to approve project",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    return { approveProject, isLoading };
+  };
+
+  const useReleaseFunds = () => {
+    const releaseFunds = async (projectId: number) => {
+      if (!checkPrerequisites()) return null;
+
+      try {
+        setIsLoading(true);
+        const hash = await writeContract({
+          address: ROOTRISE_ADDRESS,
+          abi: ROOTRISE_ABI,
+          functionName: "releaseFunds",
+          args: [BigInt(projectId)],
+          gas: 200000n, // Reasonable gas limit for fund release
+        });
+        toast({
+          title: "Releasing Funds...",
+          description: "Transaction submitted to blockchain",
+          status: "info",
+          duration: 3000,
+        });
+        return hash;
+      } catch (error: any) {
+        console.error("Release funds error:", error);
+        toast({
+          title: "Release Error",
+          description: error.message || "Failed to release funds",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    return { releaseFunds, isLoading };
+  };
+
+  // Utility functions
+  const formatUSDC = (amount: bigint) => formatUSDCAmount(amount);
+  const parseUSDC = (amount: string) => parseUSDCAmount(amount);
 
   return {
-    // Read functions - RootRise
     useGetTotalProjects,
     useGetProject,
     useGetContribution,
-    useIsFarmerWhitelisted,
+    useIsFarmerApproved,
+    useGetFarmerApplication,
     useGetContractBalance,
     useGetProjectContributors,
     useGetMinimumContribution,
@@ -890,44 +637,28 @@ const useContribute = () => {
     useGetStablecoinAddress,
     useGetProjectCounter,
     useGetTotalContributions,
-    useIsWhitelistedFarmer,
-    
-    // Read functions - USDC
     useUSDCBalance,
     useUSDCAllowance,
     useUSDCName,
     useUSDCSymbol,
     useUSDCDecimals,
     useUSDCTotalSupply,
-    
-    // Write functions - RootRise
-    useAddFarmer,
-    useRemoveFarmer,
+    useSubmitFarmerApplication,
     useCreateProject,
-    useCreateProjectForFarmer, // NEW: Admin function
     useContribute,
-    useDisburseFunds,
-    useClaimRefund,
-    useCloseFailedProject,
-    useEmergencyWithdraw,
-    
-    // Write functions - USDC
     useApproveUSDC,
-    useTransferUSDC,
-    useBurnUSDC,
-    useMintUSDC,
     useFaucet,
-    
-    // Utilities
+    useSubmitGovernmentApplication,
+    useAddGovernmentOfficial,
+    useAddFarmer,
+    useApproveProject,
+    useReleaseFunds,
     formatUSDC,
     parseUSDC,
-    
-    // Contract addresses
     ROOTRISE_ADDRESS,
     MOCK_USDC_ADDRESS,
-    
-    // Status
     isConnected,
     isCorrectNetwork,
+    isLoading,
   };
 }

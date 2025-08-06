@@ -1,7 +1,6 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { FaImage, FaPlus, FaTrash } from "react-icons/fa";
 import { useAccount } from "wagmi";
@@ -206,7 +205,7 @@ export default function FarmerApplyPage() {
       // Filter out empty image URLs
       const validImageUrls = imageUrls.filter(url => url.trim() !== '');
       
-      // For now, we'll include image URLs in the description
+      // Append image URLs to the description
       let projectDescription = data.description;
       if (validImageUrls.length > 0) {
         projectDescription += `\n\nProject Images: ${validImageUrls.join(', ')}`;
@@ -216,8 +215,9 @@ export default function FarmerApplyPage() {
 
       const hash = await createProject(
         projectTitle,
-        data.goalAmount.toString(),
-        Number(data.duration)
+        data.goalAmount,
+        data.duration,
+        '' // mobileMoneyAccount
       );
 
       if (hash) {

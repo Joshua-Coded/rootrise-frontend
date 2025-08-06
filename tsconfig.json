@@ -26,6 +26,7 @@
     "allowJs": true,
     "incremental": true,
     "jsx": "preserve",
+    "types": ["node", "mongoose", "@types/chai", "@types/node", "@types/mocha"],
     "plugins": [
       {
         "name": "next"
@@ -37,6 +38,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
+    "lib/mongodb/**/*.ts",
     "contracts/**/*",
     "hardhat.config.cjs",
     "scripts/**/*",

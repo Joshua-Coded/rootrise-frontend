@@ -45,6 +45,10 @@ import {
   Spinner,
   Icon,
   useToast,
+  FormControl,
+  FormLabel,
+  FormErrorMessage,
+  Input,
 } from '@chakra-ui/react';
 
 export default function DashboardPage() {
@@ -57,19 +61,21 @@ export default function DashboardPage() {
     useGetContribution,
     useUSDCBalance,
     useUSDCAllowance,
-    useIsFarmerWhitelisted,
+    useIsFarmerApproved,
     formatUSDC,
     useFaucet,
     useApproveUSDC,
+    useSubmitGovernmentApplication,
     ROOTRISE_ADDRESS,
   } = useRootRiseContract();
 
   const { data: totalProjects } = useGetTotalProjects();
   const { data: usdcBalance } = useUSDCBalance(address || '');
   const { data: usdcAllowance } = useUSDCAllowance(address || '', ROOTRISE_ADDRESS);
-  const { data: isFarmerWhitelisted } = useIsFarmerWhitelisted(address || '');
+  const { data: isFarmerWhitelisted } = useIsFarmerApproved(address || '');
   const { claimFromFaucet, isLoading: isFaucetLoading } = useFaucet();
   const { approveUSDC, isLoading: isApproveLoading } = useApproveUSDC();
+  const { submitGovernmentApplication, isLoading: isSubmittingApplication } = useSubmitGovernmentApplication();
 
   const [userReadiness, setUserReadiness] = useState({
     hasUSDC: false,
@@ -214,6 +220,39 @@ export default function DashboardPage() {
         description: 'Failed to approve USDC',
         status: 'error',
         duration: 3000,
+      });
+    }
+  };
+
+  // Handle government application submission
+  const onSubmitGovernmentApplication = async (data: { officialName: string; officialRole: string; documentsHash: string }) => {
+    if (!isConnected) {
+      toast({
+        title: 'Connection Required',
+        description: 'Please connect your wallet',
+        status: 'warning',
+        duration: 5000,
+      });
+      return;
+    }
+
+    try {
+      const hash = await submitGovernmentApplication(data.officialName, data.officialRole, data.documentsHash);
+      if (hash) {
+        toast({
+          title: 'Success!',
+          description: 'Government application submitted. Awaiting approval.',
+          status: 'success',
+          duration: 8000,
+        });
+      }
+    } catch (error) {
+      console.error('Government application error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to submit government application',
+        status: 'error',
+        duration: 5000,
       });
     }
   };
@@ -407,6 +446,7 @@ export default function DashboardPage() {
                 <Tab>My Contributions</Tab>
                 <Tab>My Projects</Tab>
                 <Tab>Quick Actions</Tab>
+                <Tab>Government Application</Tab>
               </TabList>
 
               <TabPanels>
@@ -695,7 +735,7 @@ export default function DashboardPage() {
                               </Text>
                               <Button
                                 colorScheme="blue"
-                                onClick={() => router.push('/farmers/create-project')}
+                                onClick={() => router.push('/farmers/apply')}
                               >
                                 Create Now
                               </Button>
@@ -746,6 +786,64 @@ export default function DashboardPage() {
                         </CardBody>
                       </Card>
                     </SimpleGrid>
+                  </VStack>
+                </TabPanel>
+
+                {/* Government Application Tab */}
+                <TabPanel>
+                  <VStack spacing={4} align="start">
+                    <Text fontSize="lg" fontWeight="bold" color="gray.800">
+                      Government Application
+                    </Text>
+                    <Card w="full" bg={cardBg}>
+                      <CardBody>
+                        <VStack spacing={6}>
+                          <Text fontSize="sm" color="gray.600">
+                            Apply to become a government official to oversee agricultural projects. Your application will be reviewed by the contract owner.
+                          </Text>
+                          <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.currentTarget as HTMLFormElement);
+                            onSubmitGovernmentApplication({
+                              officialName: formData.get('officialName') as string,
+                              officialRole: formData.get('officialRole') as string,
+                              documentsHash: formData.get('documentsHash') as string,
+                            });
+                          }}>
+                            <VStack spacing={4} w="full">
+                              <FormControl isRequired>
+                                <FormLabel>Official Name</FormLabel>
+                                <Input name="officialName" placeholder="e.g., Jane Smith" />
+                                <FormErrorMessage>Please enter your name</FormErrorMessage>
+                              </FormControl>
+                              <FormControl isRequired>
+                                <FormLabel>Official Role</FormLabel>
+                                <Input name="officialRole" placeholder="e.g., Agricultural Inspector" />
+                                <FormErrorMessage>Please enter your role</FormErrorMessage>
+                              </FormControl>
+                              <FormControl isRequired>
+                                <FormLabel>Documents Hash</FormLabel>
+                                <Input name="documentsHash" placeholder="e.g., Qm... (IPFS hash)" />
+                                <FormErrorMessage>Please provide a documents hash</FormErrorMessage>
+                              </FormControl>
+                              <Button
+                                type="submit"
+                                colorScheme="brand"
+                                size="lg"
+                                w="full"
+                                isLoading={isSubmittingApplication}
+                                loadingText="Submitting..."
+                              >
+                                Submit Application
+                              </Button>
+                            </VStack>
+                          </form>
+                          <Text fontSize="sm" color="gray.500" textAlign="center">
+                            Applications are subject to approval by the contract owner.
+                          </Text>
+                        </VStack>
+                      </CardBody>
+                    </Card>
                   </VStack>
                 </TabPanel>
               </TabPanels>

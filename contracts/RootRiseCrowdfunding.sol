@@ -1,91 +1,75 @@
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v4.9/contracts/access/AccessControl.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v4.9/contracts/security/Pausable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v4.9/contracts/token/ERC20/IERC20.sol";
 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 
-/**
- * @title RootRiseCrowdfunding
- * @author Joshua Alana
- * @notice A managed, stablecoin-based crowdfunding platform for verified Rwandan agricultural projects
- * @dev Uses ERC-20 stablecoins for price stability and includes comprehensive security measures
- */
-contract RootRiseCrowdfunding is Ownable {
-    IERC20 public stablecoin;
-    
-    // Constants
-    uint256 public constant MINIMUM_CONTRIBUTION = 1 * 10**6; // 1 USDC (6 decimals)
-    uint256 public constant MAXIMUM_DURATION = 365 days;
+contract RootRiseV2 is AccessControl, Pausable {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant FARMER_ROLE = keccak256("FARMER_ROLE");
+    bytes32 public constant GOVERNMENT_ROLE = keccak256("GOVERNMENT_ROLE");
 
-    // Project counter
-    uint256 public projectCounter;
+    enum FarmerStatus { Pending, Approved, Rejected }
+    enum ProjectStatus { Draft, Pending, Approved, Active, Completed }
 
-    // Project structure
+    struct FarmerApplication {
+        address farmerAddress;
+        string[] documentsHashes; // Updated to array for multiple Cloudinary URLs
+        FarmerStatus status;
+        uint256 appliedAt;
+        string mobileMoneyAccount;
+    }
+
     struct Project {
+        uint256 projectId;
         address farmer;
         string title;
-        uint256 goal;
+        uint256 fundingGoal;
         uint256 deadline;
-        uint256 amountRaised;
-        bool isOpen;
-        bool fundsDisbursed;
+        uint256 fundsRaised;
+        ProjectStatus status;
+        string mobileMoneyAccount;
+        bool fundsReleased;
         uint256 createdAt;
     }
 
-    // Mappings
+    uint256 public constant MINIMUM_CONTRIBUTION = 1 * 10**6; // 1 USDC (6 decimals)
+    uint256 public constant MAXIMUM_DURATION = 365 days;
+
+    IERC20 public stablecoin;
+    mapping(address => FarmerApplication) public farmerApplications;
     mapping(uint256 => Project) public projects;
-    mapping(address => bool) public whitelistedFarmers;
+    mapping(address => bool) public approvedFarmers;
     mapping(uint256 => mapping(address => uint256)) public contributions;
     mapping(uint256 => address[]) public projectContributors;
     mapping(address => uint256) public totalContributions;
+    uint256 public projectCounter;
 
-    // Events
-    event ProjectCreated(
-        uint256 indexed id,
-        address indexed farmer,
-        string title,
-        uint256 goal,
-        uint256 deadline
-    );
-    
-    event ContributionMade(
-        uint256 indexed projectId,
-        address indexed contributor,
-        uint256 amount,
-        uint256 timestamp
-    );
-    
-    event FundsDisbursed(
-        uint256 indexed projectId,
-        address indexed farmer,
-        uint256 amount,
-        uint256 timestamp
-    );
-    
-    event RefundClaimed(
-        uint256 indexed projectId,
-        address indexed contributor,
-        uint256 amount,
-        uint256 timestamp
-    );
-    
-    event FarmerAdded(address indexed farmer, uint256 timestamp);
-    event FarmerRemoved(address indexed farmer, uint256 timestamp);
+    event FarmerApplicationSubmitted(address indexed farmer, string[] documentsHashes, uint256 timestamp);
+    event FarmerApproved(address indexed farmer, address indexed admin, uint256 timestamp);
+    event FarmerRejected(address indexed farmer, address indexed admin, uint256 timestamp);
+    event ProjectCreated(uint256 indexed projectId, address indexed farmer, string title, uint256 fundingGoal, uint256 deadline, uint256 timestamp);
+    event ProjectSubmitted(uint256 indexed projectId, address indexed farmer, uint256 timestamp);
+    event ProjectApproved(uint256 indexed projectId, address indexed admin, uint256 timestamp);
+    event ContributionMade(uint256 indexed projectId, address indexed contributor, uint256 amount, uint256 timestamp);
+    event FundsReleased(uint256 indexed projectId, uint256 amount, address indexed farmer, uint256 timestamp);
+    event RefundClaimed(uint256 indexed projectId, address indexed contributor, uint256 amount, uint256 timestamp);
     event ProjectClosed(uint256 indexed projectId, bool successful, uint256 timestamp);
 
-    /**
-     * @dev Initialize the contract with stablecoin address
-     * @param _stablecoinAddress Address of the ERC-20 stablecoin contract
-     */
-    constructor(address _stablecoinAddress) Ownable(msg.sender) {
-        require(_stablecoinAddress != address(0), "Invalid stablecoin address");
-        stablecoin = IERC20(_stablecoinAddress);
+    modifier onlyAdmin() {
+        require(hasRole(ADMIN_ROLE, msg.sender), "Admin access required");
+        _;
     }
 
-    // Modifiers
-    modifier onlyWhitelistedFarmer() {
-        require(whitelistedFarmers[msg.sender], "Not a whitelisted farmer");
+    modifier onlyGovernment() {
+        require(hasRole(GOVERNMENT_ROLE, msg.sender), "Government access required");
+        _;
+    }
+
+    modifier onlyApprovedFarmer() {
+        require(approvedFarmers[msg.sender], "Farmer approval required");
         _;
     }
 
@@ -94,193 +78,209 @@ contract RootRiseCrowdfunding is Ownable {
         _;
     }
 
-    /**
-     * @notice Adds a farmer's address to the whitelist. Only the owner can call this.
-     * @param _farmerAddress The address of the farmer to add
-     */
-    function addFarmer(address _farmerAddress) external onlyOwner {
-        require(_farmerAddress != address(0), "Invalid farmer address");
-        require(!whitelistedFarmers[_farmerAddress], "Farmer already whitelisted");
-        
-        whitelistedFarmers[_farmerAddress] = true;
-        emit FarmerAdded(_farmerAddress, block.timestamp);
+    constructor(address _stablecoinAddress) {
+        require(_stablecoinAddress != address(0), "Invalid stablecoin address");
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
+        stablecoin = IERC20(_stablecoinAddress);
+        projectCounter = 0;
     }
 
-    /**
-     * @notice Removes a farmer's address from the whitelist
-     * @param _farmerAddress The address of the farmer to remove
-     */
-    function removeFarmer(address _farmerAddress) external onlyOwner {
-        require(whitelistedFarmers[_farmerAddress], "Farmer not whitelisted");
-        
-        whitelistedFarmers[_farmerAddress] = false;
-        emit FarmerRemoved(_farmerAddress, block.timestamp);
+    function submitFarmerApplication(string[] memory _documentsHashes, string memory _mobileMoneyAccount) 
+        external 
+        whenNotPaused 
+    {
+        require(farmerApplications[msg.sender].farmerAddress == address(0), "Application already exists");
+        require(_documentsHashes.length > 0 && _documentsHashes.length <= 3, "1-3 documents required");
+
+        farmerApplications[msg.sender] = FarmerApplication({
+            farmerAddress: msg.sender,
+            documentsHashes: _documentsHashes,
+            status: FarmerStatus.Pending,
+            appliedAt: block.timestamp,
+            mobileMoneyAccount: _mobileMoneyAccount
+        });
+
+        emit FarmerApplicationSubmitted(msg.sender, _documentsHashes, block.timestamp);
     }
 
-    /**
-     * @notice Creates a new project for the calling farmer. Only whitelisted farmers can call.
-     * @param _title The project title/description
-     * @param _goal The funding goal in stablecoin units
-     * @param _durationInDays The project duration in days
-     */
-    function createProject(
-        string memory _title,
-        uint256 _goal,
-        uint256 _durationInDays
-    ) external onlyWhitelistedFarmer {
+    function approveFarmer(address _farmer) 
+        external 
+        onlyAdmin 
+        whenNotPaused 
+    {
+        require(farmerApplications[_farmer].farmerAddress != address(0), "No application found");
+        require(farmerApplications[_farmer].status == FarmerStatus.Pending, "Application not pending");
+
+        farmerApplications[_farmer].status = FarmerStatus.Approved;
+        approvedFarmers[_farmer] = true;
+        _grantRole(FARMER_ROLE, _farmer);
+
+        emit FarmerApproved(_farmer, msg.sender, block.timestamp);
+    }
+
+    function rejectFarmer(address _farmer) 
+        external 
+        onlyAdmin 
+        whenNotPaused 
+    {
+        require(farmerApplications[_farmer].farmerAddress != address(0), "No application found");
+        require(farmerApplications[_farmer].status == FarmerStatus.Pending, "Application not pending");
+
+        farmerApplications[_farmer].status = FarmerStatus.Rejected;
+        emit FarmerRejected(_farmer, msg.sender, block.timestamp);
+    }
+
+    function submitProject(string memory _title, uint256 _fundingGoal, uint256 _durationInDays, string memory _mobileMoneyAccount) 
+        external 
+        onlyApprovedFarmer 
+        whenNotPaused 
+    {
         require(bytes(_title).length > 0, "Title cannot be empty");
-        require(_goal >= MINIMUM_CONTRIBUTION, "Goal too low");
+        require(_fundingGoal >= MINIMUM_CONTRIBUTION, "Goal too low");
         require(_durationInDays > 0 && _durationInDays <= MAXIMUM_DURATION / 1 days, "Invalid duration");
 
         projectCounter++;
         uint256 deadline = block.timestamp + (_durationInDays * 1 days);
 
         projects[projectCounter] = Project({
+            projectId: projectCounter,
             farmer: msg.sender,
             title: _title,
-            goal: _goal,
+            fundingGoal: _fundingGoal,
             deadline: deadline,
-            amountRaised: 0,
-            isOpen: true,
-            fundsDisbursed: false,
+            fundsRaised: 0,
+            status: ProjectStatus.Pending,
+            mobileMoneyAccount: _mobileMoneyAccount,
+            fundsReleased: false,
             createdAt: block.timestamp
         });
 
-        emit ProjectCreated(projectCounter, msg.sender, _title, _goal, deadline);
+        emit ProjectCreated(projectCounter, msg.sender, _title, _fundingGoal, deadline, block.timestamp);
+        emit ProjectSubmitted(projectCounter, msg.sender, block.timestamp);
     }
 
-    /**
-     * @notice Admin can create projects for farmers (backward compatibility)
-     * @param _farmer The farmer's wallet address. Must be whitelisted.
-     * @param _title The project title/description
-     * @param _goal The funding goal in stablecoin units
-     * @param _durationInDays The project duration in days
-     */
-    function createProjectForFarmer(
-        address _farmer,
-        string memory _title,
-        uint256 _goal,
-        uint256 _durationInDays
-    ) external onlyOwner {
-        require(whitelistedFarmers[_farmer], "Farmer not whitelisted");
-        require(bytes(_title).length > 0, "Title cannot be empty");
-        require(_goal >= MINIMUM_CONTRIBUTION, "Goal too low");
-        require(_durationInDays > 0 && _durationInDays <= MAXIMUM_DURATION / 1 days, "Invalid duration");
+    function approveProject(uint256 _projectId) 
+        external 
+        whenNotPaused 
+        projectExists(_projectId)
+    {
+        require(
+            hasRole(ADMIN_ROLE, msg.sender) || hasRole(GOVERNMENT_ROLE, msg.sender), 
+            "Admin or Government access required"
+        );
+        require(projects[_projectId].status == ProjectStatus.Pending, "Project not pending");
 
-        projectCounter++;
-        uint256 deadline = block.timestamp + (_durationInDays * 1 days);
-
-        projects[projectCounter] = Project({
-            farmer: _farmer,
-            title: _title,
-            goal: _goal,
-            deadline: deadline,
-            amountRaised: 0,
-            isOpen: true,
-            fundsDisbursed: false,
-            createdAt: block.timestamp
-        });
-
-        emit ProjectCreated(projectCounter, _farmer, _title, _goal, deadline);
+        projects[_projectId].status = ProjectStatus.Approved;
+        emit ProjectApproved(_projectId, msg.sender, block.timestamp);
     }
 
-    /**
-     * @notice Contribute stablecoins to a project. User must approve this contract first.
-     * @param _projectId The ID of the project to contribute to
-     * @param _amount The amount of stablecoins to contribute
-     */
-    function contribute(uint256 _projectId, uint256 _amount) external projectExists(_projectId) {
+    function contribute(uint256 _projectId, uint256 _amount) 
+        external 
+        whenNotPaused 
+        projectExists(_projectId)
+    {
         Project storage project = projects[_projectId];
         
-        require(project.isOpen, "Project is closed");
+        require(project.status == ProjectStatus.Approved, "Project not approved");
         require(block.timestamp < project.deadline, "Project deadline passed");
         require(_amount >= MINIMUM_CONTRIBUTION, "Contribution too small");
         require(stablecoin.balanceOf(msg.sender) >= _amount, "Insufficient balance");
+        require(project.fundsRaised + _amount <= project.fundingGoal, "Exceeds funding goal");
 
-        // Transfer stablecoins from contributor to contract
-        require(stablecoin.transferFrom(msg.sender, address(this), _amount), "Transfer failed");
-
-        // Update contribution records
+        require(stablecoin.transferFrom(msg.sender, address(this), _amount), "USDC transfer failed");
+        
         if (contributions[_projectId][msg.sender] == 0) {
             projectContributors[_projectId].push(msg.sender);
         }
         
-        contributions[_projectId][msg.sender] += _amount;
-        totalContributions[msg.sender] += _amount;
-        project.amountRaised += _amount;
+        contributions[_projectId][msg.sender] = contributions[_projectId][msg.sender] + _amount;
+        totalContributions[msg.sender] = totalContributions[msg.sender] + _amount;
+        project.fundsRaised = project.fundsRaised + _amount;
+
+        if (project.fundsRaised == project.fundingGoal) {
+            project.status = ProjectStatus.Active;
+        }
 
         emit ContributionMade(_projectId, msg.sender, _amount, block.timestamp);
     }
 
-    /**
-     * @notice Disburse funds if goal is met. Can be called by anyone after deadline.
-     * @param _projectId The ID of the project to disburse funds for
-     */
-    function disburseFunds(uint256 _projectId) external projectExists(_projectId) {
+    function releaseFunds(uint256 _projectId) 
+        external 
+        onlyAdmin 
+        whenNotPaused 
+        projectExists(_projectId)
+    {
         Project storage project = projects[_projectId];
         
-        require(project.isOpen, "Project is closed");
-        require(project.amountRaised >= project.goal, "Goal not met");
-        require(!project.fundsDisbursed, "Funds already disbursed");
+        require(project.status == ProjectStatus.Active, "Project not active");
+        require(!project.fundsReleased, "Funds already released");
 
-        project.fundsDisbursed = true;
-        
-        // Transfer funds to farmer
-        require(stablecoin.transfer(project.farmer, project.amountRaised), "Transfer failed");
+        project.fundsReleased = true;
+        project.status = ProjectStatus.Completed;
+        require(stablecoin.transfer(project.farmer, project.fundsRaised), "USDC transfer failed");
 
-        emit FundsDisbursed(_projectId, project.farmer, project.amountRaised, block.timestamp);
+        emit FundsReleased(_projectId, project.fundsRaised, project.farmer, block.timestamp);
     }
 
-    /**
-     * @notice Claim a refund if project failed to meet goal
-     * @param _projectId The ID of the project to claim refund from
-     */
-    function claimRefund(uint256 _projectId) external projectExists(_projectId) {
+    function claimRefund(uint256 _projectId) 
+        external 
+        projectExists(_projectId) 
+        whenNotPaused 
+    {
         Project storage project = projects[_projectId];
         
-        require(!project.isOpen || block.timestamp >= project.deadline, "Project still active");
-        require(project.amountRaised < project.goal, "Project was successful");
-        require(!project.fundsDisbursed, "Funds already disbursed");
+        require(project.status != ProjectStatus.Active && project.status != ProjectStatus.Completed, "Project still active or completed");
+        require(block.timestamp >= project.deadline || project.status == ProjectStatus.Draft, "Project still pending");
+        require(project.fundsRaised < project.fundingGoal, "Project was successful");
+        require(!project.fundsReleased, "Funds already disbursed");
         
         uint256 contributionAmount = contributions[_projectId][msg.sender];
         require(contributionAmount > 0, "No contribution found");
 
-        // Reset contribution to prevent double refunds
         contributions[_projectId][msg.sender] = 0;
-        totalContributions[msg.sender] -= contributionAmount;
+        totalContributions[msg.sender] = totalContributions[msg.sender] - contributionAmount;
 
-        // Transfer refund
         require(stablecoin.transfer(msg.sender, contributionAmount), "Refund failed");
 
         emit RefundClaimed(_projectId, msg.sender, contributionAmount, block.timestamp);
     }
 
-    /**
-     * @notice Close a project that failed to meet its goal (admin only)
-     * @param _projectId The ID of the project to close
-     */
-    function closeFailedProject(uint256 _projectId) external onlyOwner projectExists(_projectId) {
+    function closeFailedProject(uint256 _projectId) 
+        external 
+        onlyAdmin 
+        projectExists(_projectId) 
+        whenNotPaused 
+    {
         Project storage project = projects[_projectId];
         
-        require(project.isOpen, "Project already closed");
+        require(project.status == ProjectStatus.Approved || project.status == ProjectStatus.Pending, "Project not open");
         require(block.timestamp >= project.deadline, "Project still active");
-        require(project.amountRaised < project.goal, "Project was successful");
+        require(project.fundsRaised < project.fundingGoal, "Project was successful");
 
-        project.isOpen = false;
+        project.status = ProjectStatus.Draft;
         emit ProjectClosed(_projectId, false, block.timestamp);
     }
 
-    /**
-     * @notice Emergency function to withdraw contract balance (admin only)
-     * @dev Should only be used in emergency situations
-     */
-    function emergencyWithdraw() external onlyOwner {
-        uint256 balance = stablecoin.balanceOf(address(this));
-        require(balance > 0, "No balance to withdraw");
-        require(stablecoin.transfer(owner(), balance), "Emergency withdrawal failed");
+    function emergencyPause() external onlyAdmin {
+        _pause();
     }
 
-    // View functions
+    function emergencyUnpause() external onlyAdmin {
+        _unpause();
+    }
+
+    function addGovernmentOfficial(address _official) external onlyAdmin {
+        require(_official != address(0), "Invalid address");
+        _grantRole(GOVERNMENT_ROLE, _official);
+    }
+
+    function emergencyWithdraw() external onlyAdmin {
+        uint256 balance = stablecoin.balanceOf(address(this));
+        require(balance > 0, "No balance to withdraw");
+        require(stablecoin.transfer(msg.sender, balance), "Emergency withdrawal failed");
+    }
+
     function getTotalProjects() external view returns (uint256) {
         return projectCounter;
     }
@@ -297,8 +297,8 @@ contract RootRiseCrowdfunding is Ownable {
         return projectContributors[_projectId];
     }
 
-    function isFarmerWhitelisted(address _farmer) external view returns (bool) {
-        return whitelistedFarmers[_farmer];
+    function isFarmerApproved(address _farmer) external view returns (bool) {
+        return approvedFarmers[_farmer];
     }
 
     function getContractBalance() external view returns (uint256) {
